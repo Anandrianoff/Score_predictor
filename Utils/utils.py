@@ -9,9 +9,9 @@ def calculate_team_form(team, date, df, num_matches=5):
     """
     # Все матчи команды до указанной даты
     team_matches = df[
-        ((df['Home'] == team) | (df['Away'] == team)) & 
-        (df['Date'] < date)
-    ].sort_values('Date', ascending=False).head(num_matches)
+        ((df['home'] == team) | (df['away'] == team)) & 
+        (df['date'] < date)
+    ].sort_values('date', ascending=False).head(num_matches)
     
     if len(team_matches) == 0:
         return {
@@ -33,21 +33,21 @@ def calculate_team_form(team, date, df, num_matches=5):
     for idx, (_, match) in enumerate(team_matches.iterrows()):
         weight = weights[idx]
         
-        if match['Home'] == team:
-            goals_scored = match['HG']
-            goals_conceded = match['AG']
-            if match['HG'] > match['AG']:  # Победа
+        if match['home'] == team:
+            goals_scored = match['hg']
+            goals_conceded = match['ag']
+            if match['hg'] > match['ag']:  # Победа
                 points = 3
-            elif match['HG'] == match['AG']:  # Ничья
+            elif match['hg'] == match['ag']:  # Ничья
                 points = 1
             else:  # Поражение
                 points = 0
         else:  # Команда в гостях
-            goals_scored = match['AG']
-            goals_conceded = match['HG']
-            if match['AG'] > match['HG']:
+            goals_scored = match['ag']
+            goals_conceded = match['hg']
+            if match['ag'] > match['hg']:
                 points = 3
-            elif match['AG'] == match['HG']:
+            elif match['ag'] == match['hg']:
                 points = 1
             else:
                 points = 0
@@ -68,8 +68,8 @@ def calculate_team_form(team, date, df, num_matches=5):
 def calculate_team_stats(team, date, df):
     """Расчет общей статистики команды"""
     team_matches = df[
-        ((df['Home'] == team) | (df['Away'] == team)) & 
-        (df['Date'] < date)
+        ((df['home'] == team) | (df['away'] == team)) & 
+        (df['date'] < date)
     ]
     
     if len(team_matches) == 0:
@@ -86,19 +86,19 @@ def calculate_team_stats(team, date, df):
     total_goals_conceded = 0
     
     for _, match in team_matches.iterrows():
-        if match['Home'] == team:
-            total_goals_scored += match['HG']
-            total_goals_conceded += match['AG']
-            if match['HG'] > match['AG']:
+        if match['home'] == team:
+            total_goals_scored += match['hg']
+            total_goals_conceded += match['ag']
+            if match['hg'] > match['ag']:
                 total_points += 3
-            elif match['HG'] == match['AG']:
+            elif match['hg'] == match['ag']:
                 total_points += 1
         else:
-            total_goals_scored += match['AG']
-            total_goals_conceded += match['HG']
-            if match['AG'] > match['HG']:
+            total_goals_scored += match['ag']
+            total_goals_conceded += match['hg']
+            if match['ag'] > match['hg']:
                 total_points += 3
-            elif match['AG'] == match['HG']:
+            elif match['ag'] == match['hg']:
                 total_points += 1
     
     return {

@@ -200,6 +200,7 @@ def get_team_by_api_id(session: Session, team_api_id: str) -> Optional[Team]:
         Объект Team или None, если команда не найдена
     """
     try:
+        logger.info(f"Поиск команды с API ID '{team_api_id}'")
         team = session.query(Team).filter(Team.team_api_id == team_api_id).first()
         if team:
             logger.info(f"Команда с API ID '{team_api_id}' найдена: {team.team_name} (ID {team.team_id})")
