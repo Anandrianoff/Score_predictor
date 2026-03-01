@@ -42,7 +42,7 @@ def add_all_teams():
     return ""
 
 def add_future_matches():
-    request_url = Base_url + "/games/list?leagueid=235&year=2025&from=2026-02-27"
+    request_url = Base_url + "/games/list?leagueid=235&year=2025&from=2025-02-27&to=2026-02-27"
     response = requests.get(request_url)
     data = response.json()
     if data.get('status') == 'OK':
