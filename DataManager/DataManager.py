@@ -1,9 +1,11 @@
 import sys
 from sqlalchemy import create_engine, text
 sys.path.append(r'D:\Programming\Score_predictor')
-from DataModels import Base, Team, Match, add_match, add_team, get_team_by_api_id
+sys.path.append(r'D:\Programming\Score_predictor\DataManager')
+import api_models
+from api_models import MatchesResponse
+import DataModels
 from sqlalchemy.orm import Session, sessionmaker
-import psycopg2
 from datetime import datetime 
 import requests
 
@@ -36,7 +38,7 @@ def add_all_teams():
     for team_id, team_name in sorted_teams:
         print(f"team_id: {team_id}, team_name: '{team_name}'")
         with Session() as session:
-            add_team(session, team_name, team_id)
+            DataModels.add_team(session, team_name, team_id)
     return ""
 
 def add_future_matches():
@@ -46,8 +48,8 @@ def add_future_matches():
     if data.get('status') == 'OK':
         with Session() as session:
             for match in data['data']:
-                home_team_id = get_team_by_api_id(session, match['homeTeam']['id']).team_id
-                away_team_id = get_team_by_api_id(session, match['awayTeam']['id']).team_id
+                home_team_id = DataModels.get_team_by_api_id(session, match['homeTeam']['id']).team_id
+                away_team_id = DataModels.get_team_by_api_id(session, match['awayTeam']['id']).team_id
                 season = "2025/2026"
                 start_match = datetime.fromisoformat(match['date'].replace('Z', '+00:00'))
                 psch = 0
@@ -68,7 +70,35 @@ def add_future_matches():
                                         psca = odd_outcome['value']
                             
                 print(f"home_team_id: {home_team_id}, away_team_id: {away_team_id}, season: {season}, start_match: {start_match}, psch: {psch}, pscd: {pscd}, psca: {psca}")
-                add_match(session, home_team_id, away_team_id, start_match, season, homegoals, awaygoals, psch, pscd, psca)
+                DataModels.add_match(session, home_team_id, away_team_id, start_match, season, homegoals, awaygoals, psch, pscd, psca)
+    return ""
+
+def get_matches_by_date(date):
+    matches_response = MatchesResponse()
+    matches_response.date = date
+    matches_response.matches = []
+    with Session() as session:
+        matches = DataModels.get_matches_by_date(session, date)
+        if matches:
+            for match in matches:
+                filled_match = api_models.Match()
+                filled_match.match_id = match.match_id
+                filled_match.home_team_id = match.home_team
+                filled_match.home_team_name_rus = DataModels.get_team_by_id(session, match.home_team).team_name_rus
+                filled_match.away_team_id = match.away_team
+                filled_match.away_team_name_rus = DataModels.get_team_by_id(session, match.away_team).team_name_rus
+                filled_match.winner_predict = match.predicted_score
+                filled_match.winner_fact = match.winner
+                if match.predicted_score == "h":
+                    filled_match.odd = match.psch
+                elif match.predicted_score == "d":
+                    filled_match.odd = match.pscd
+                elif match.predicted_score == "a":
+                    filled_match.odd = match.psca
+                matches_response.matches.append(filled_match)
+    return matches_response
+
+
 
 # Заполнение базы данных командами и будущими матчами            
 # add_all_teams()           
