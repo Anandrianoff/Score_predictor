@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime 
+from datetime import datetime, timedelta 
 from typing import Optional
 from psycopg2 import IntegrityError
 from sqlalchemy import String, ForeignKey
@@ -27,6 +27,8 @@ class Team(Base):
     # Позже можно будет добавить поля, хранящие форму команд и другие данные для рассчета вероятности победы
     team_id: Mapped[int] = mapped_column(primary_key=True)
     team_name: Mapped[str] = mapped_column(String)  # По умолчанию nullable=False
+    team_name_rus: Mapped[str] = mapped_column(String) 
+    team_name_model: Mapped[str] = mapped_column(String) # название команды в датасете
     team_api_id: Mapped[Optional[int]]
 
 class MatchResult(enum.Enum):
@@ -206,4 +208,51 @@ def get_team_by_api_id(session: Session, team_api_id: str) -> Optional[Team]:
         return team
     except Exception as e:
         logger.error(f"Ошибка при получении команды по API ID '{team_api_id}': {e}")
+        return None
+    
+def get_matches_by_date(session: Session, date: datetime) -> list[Match]:
+    """
+     Получает матчи за указанный день.
+     
+     Args:
+        session: Сессия SQLAlchemy
+        date: Дата для поиска матчей
+        
+    Returns:
+        Список объектов Match за указанный день
+    """
+    try:
+        end_date = date + timedelta(days=1)
+        matches = session.query(Match).filter(
+            Match.start_match >= date,
+            Match.start_match < end_date
+        ).order_by(Match.start_match).all()
+            
+        logger.info(f"Найдено {len(matches)} матчей с {date} по {end_date}")
+        print(matches)
+        return matches
+    except Exception as e:
+        logger.error(f"Ошибка при получении матчей за период: {e}")
+        return [] 
+    
+def get_team_by_id(session: Session, team_id: int) -> Optional[Team]:
+    """
+    Получает команду по её ID.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        team_id: ID команды
+    
+    Returns:
+        Объект Team или None, если команда не найдена
+    """
+    try:
+        team = session.get(Team, team_id)
+        if team:
+            logger.info(f"Команда с ID {team_id} найдена: {team.team_name}")
+        else:
+            logger.warning(f"Команда с ID {team_id} не найдена")
+        return team
+    except Exception as e:
+        logger.error(f"Ошибка при получении команды с ID {team_id}: {e}")
         return None

@@ -31,6 +31,14 @@ def predict():
     print(match_params)
     return predictor.predict(model_path, matches_history_path, match_params)
 
+# no params: возвращает матчи сегодня
+# id: находит матч по id
+# from: находит матчи начиная с определенной даты
+# to: находит матчи до определенной даты
+@app.route('/matches', methods=['get'])
+def matches():
+   return ""
+
 if __name__ == '__main__':
    model_artifacts = predictor.load_model(model_path)
    app.run()
