@@ -1,4 +1,5 @@
 import sys
+import time
 from sqlalchemy import create_engine, text
 sys.path.append(r'D:\Programming\Score_predictor')
 sys.path.append(r'D:\Programming\Score_predictor\DataManager')
@@ -6,7 +7,7 @@ import api_models
 from api_models import MatchesResponse
 import DataModels
 from sqlalchemy.orm import Session, sessionmaker
-from datetime import datetime 
+from datetime import datetime, timedelta 
 import requests
 
 db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'
@@ -41,16 +42,24 @@ def add_all_teams():
             DataModels.add_team(session, team_name, team_id)
     return ""
 
-def add_future_matches():
-    request_url = Base_url + "/games/list?leagueid=235&year=2025&from=2025-02-27&to=2026-02-27"
-    response = requests.get(request_url)
+def add_matches(from_date, to_date):
+    # request_matches_url = Base_url + f"/games/list?leagueid=235&from={from_date}&to={to_date}"
+    request_matches_url = Base_url + f"/games/list?leagueid=235&year=2025"
+    response = requests.get(request_matches_url)
     data = response.json()
     if data.get('status') == 'OK':
         with Session() as session:
             for match in data['data']:
-                home_team_id = DataModels.get_team_by_api_id(session, match['homeTeam']['id']).team_id
-                away_team_id = DataModels.get_team_by_api_id(session, match['awayTeam']['id']).team_id
-                season = "2025/2026"
+                match_api_id = match['id']
+                home_team = DataModels.get_team_by_api_id(session, match['homeTeam']['id'])
+                if home_team is None:
+                    home_team = DataModels.add_team(session, match['homeTeam']['name'], team_api_id=match['homeTeam']['id'])
+                home_team_id = home_team.team_id
+                away_team = DataModels.get_team_by_api_id(session, match['awayTeam']['id'])
+                if away_team is None:
+                    away_team = DataModels.add_team(session, match['awayTeam']['name'], team_api_id=match['awayTeam']['id'])
+                away_team_id = away_team.team_id
+                season = match['season']['year']
                 start_match = datetime.fromisoformat(match['date'].replace('Z', '+00:00'))
                 psch = 0
                 pscd = 0
@@ -68,10 +77,46 @@ def add_future_matches():
                                         pscd = odd_outcome['value']
                                     elif odd_outcome['name'].lower() == "away":  # Победа гостевой команды
                                         psca = odd_outcome['value']
-                            
+                request_glicko_url = Base_url + f"/Games/glicko/{match_api_id}"
+                print(f"Запрос к Glicko API: {request_glicko_url}")
+                response_glicko = requests.get(request_glicko_url)
+                glicko_json = response_glicko.json()
+                print(f"Ответ от Glicko API: {response_glicko.status_code} - {response_glicko.text}")
+                home_rating = 0
+                home_rd = 0
+                home_vol = 0
+                away_rating = 0
+                away_rd = 0
+                away_vol = 0
+                if glicko_json.get('status') == 'OK':
+                    glicko_data = glicko_json['data']['glicko']
+                    home_rating = glicko_data['homeRating']
+                    home_rd = glicko_data['homeRd']
+                    home_vol = glicko_data['homeVolatility']
+                    away_rating = glicko_data['awayRating']
+                    away_rd = glicko_data['awayRd']
+                    away_vol = glicko_data['awayVolatility']
+
                 print(f"home_team_id: {home_team_id}, away_team_id: {away_team_id}, season: {season}, start_match: {start_match}, psch: {psch}, pscd: {pscd}, psca: {psca}")
-                DataModels.add_match(session, home_team_id, away_team_id, start_match, season, homegoals, awaygoals, psch, pscd, psca)
-    return ""
+                DataModels.add_match(session=session, 
+                                     home_team_id=home_team_id, 
+                                     away_team_id=away_team_id, 
+                                     start_match=start_match, 
+                                     season=season, 
+                                     home_goals=homegoals, 
+                                     away_goals=awaygoals, 
+                                     psch=psch, 
+                                     pscd=pscd, 
+                                     psca=psca, 
+                                     home_rating=home_rating, 
+                                     home_rd=home_rd, 
+                                     home_vol=home_vol, 
+                                     away_rating=away_rating, 
+                                     away_rd=away_rd, 
+                                     away_vol=away_vol,
+                                     match_api_id=match_api_id)
+                time.sleep(1.5)  # Небольшая задержка между запросами, чтобы не перегружать API
+    return 
 
 def get_matches_by_date(date):
     matches_response = MatchesResponse()
@@ -102,6 +147,6 @@ def get_matches_by_date(date):
 
 # Заполнение базы данных командами и будущими матчами            
 # add_all_teams()           
-# add_future_matches()
-
+# add_matches("2022-05-25", datetime.now().strftime("%Y-%m-%d"))
+# add_matches("2022-05-25", "2022-07-01")
     

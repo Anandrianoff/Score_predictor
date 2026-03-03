@@ -40,6 +40,7 @@ class Match(Base):
     __tablename__ = 'matches'
     
     match_id: Mapped[int] = mapped_column(primary_key=True)
+    match_api_id: Mapped[Optional[int]]
     home_team: Mapped[int] = mapped_column(ForeignKey('teams.team_id'))
     away_team: Mapped[int] = mapped_column(ForeignKey('teams.team_id'))
     season: Mapped[Optional[str]] = mapped_column(String)  # NULL разрешен, если сезон может быть неизвестен
@@ -50,12 +51,21 @@ class Match(Base):
     psch: Mapped[Optional[float]]  # коэффициент на победу home
     pscd: Mapped[Optional[float]]  # коэффициент на ничью
     psca: Mapped[Optional[float]]
+    glicko_home_rating: Mapped[Optional[float]]
+    glicko_home_rd: Mapped[Optional[float]]
+    glicko_home_vol: Mapped[Optional[float]]
+    glicko_away_rating: Mapped[Optional[float]]
+    glicko_away_rd: Mapped[Optional[float]]
+    glicko_away_vol: Mapped[Optional[float]]
     predicted_score: Mapped[Optional[MatchResult]]
 
 def add_team(
     session: Session,
     team_name: str,
-    team_api_id: Optional[int] = None
+    team_api_id: Optional[int] = None,
+    team_name_rus: Optional[str] = None,
+    team_name_model: Optional[str] = None
+    
 ) -> Optional[Team]:
     """
     Добавляет новую команду в базу данных.
@@ -104,6 +114,7 @@ def add_match(
     session: Session,
     home_team_id: int,
     away_team_id: int,
+    match_api_id: Optional[int] = None,
     start_match: Optional[datetime] = None,
     season: Optional[str] = None,
     home_goals: Optional[int] = None,
@@ -111,7 +122,14 @@ def add_match(
     psch: Optional[float] = None,  # коэффициент на победу home
     pscd: Optional[float] = None,  # коэффициент на ничью
     psca: Optional[float] = None,  # коэффициент на победу away
-    winner: Optional[MatchResult] = None
+    winner: Optional[MatchResult] = None,
+    home_rating: Optional[float] = None,
+    home_rd: Optional[float] = None,
+    home_vol: Optional[float] = None,
+    away_rating: Optional[float] = None,
+    away_rd: Optional[float] = None,
+    away_vol: Optional[float] = None,
+    predicted_score: Optional[MatchResult] = None
 ) -> Optional[Match]:
     """
     Добавляет новый матч в базу данных.
@@ -165,7 +183,15 @@ def add_match(
             winner=winner,
             psch=psch,
             pscd=pscd,
-            psca=psca
+            psca=psca,
+            glicko_home_rating=home_rating,
+            glicko_home_rd=home_rd,
+            glicko_home_vol=home_vol,
+            glicko_away_rating=away_rating,
+            glicko_away_rd=away_rd,
+            glicko_away_vol=away_vol,
+            predicted_score=predicted_score,
+            match_api_id=match_api_id
         )
         
         session.add(new_match)
@@ -174,7 +200,7 @@ def add_match(
         logger.info(
             f"✅ Матч #{new_match.match_id} добавлен: "
             f"{home_team.team_name} vs {away_team.team_name} "
-            f"({home_goals or '?'}:{away_goals or '?'})"
+            f"({home_goals}:{away_goals})"
         )
         
         return new_match
@@ -256,4 +282,56 @@ def get_team_by_id(session: Session, team_id: int) -> Optional[Team]:
         return team
     except Exception as e:
         logger.error(f"Ошибка при получении команды с ID {team_id}: {e}")
+        return None
+
+def add_team(
+    session: Session,
+    team_name: str,
+    team_api_id: Optional[int] = None,
+    team_name_rus: Optional[str] = None,
+    team_name_model: Optional[str] = None
+    
+) -> Optional[Team]:
+    """
+    Добавляет новую команду в базу данных.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        team_name: Название команды (обязательно)
+        team_api_id: ID команды из API (опционально)
+    
+    Returns:
+        Объект Team или None в случае ошибки
+    """
+    try:
+        # Проверяем, существует ли уже такая команда
+        existing_team = session.query(Team).filter(
+            Team.team_name == team_name
+        ).first()
+        
+        if existing_team:
+            logger.warning(f"Команда '{team_name}' уже существует с ID {existing_team.team_id}")
+            return existing_team
+        
+        # Создаем новую команду
+        new_team = Team(
+            team_name=team_name,
+            team_api_id=team_api_id,
+            team_name_rus=team_name_rus,
+            team_name_model=team_name_model
+        )
+        
+        session.add(new_team)
+        session.commit()
+        logger.info(f"✅ Команда '{team_name}' успешно добавлена с ID {new_team.team_id}")
+        
+        return new_team
+        
+    except IntegrityError as e:
+        session.rollback()
+        logger.error(f"Ошибка целостности данных при добавлении команды '{team_name}': {e}")
+        return None
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Неожиданная ошибка при добавлении команды '{team_name}': {e}")
         return None

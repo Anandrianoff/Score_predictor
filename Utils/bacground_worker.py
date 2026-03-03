@@ -47,8 +47,9 @@ def load_model(model_path):
     return model_artifacts
 
 def update_games_info():
-    today = datetime.now().strftime("%Y-%m-%d")
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    # today = datetime.now().strftime("%Y-%m-%d")
+    today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    tomorrow = (datetime.now() + timedelta(days=0)).strftime("%Y-%m-%d")
     request_url = Base_url + f"/games/list?leagueid=235&from={today}&to={tomorrow}"
     response = requests.get(request_url)
     data = response.json()
@@ -92,9 +93,10 @@ def update_games_info():
     return
 
 def update_prediction():
-    today = datetime.now().strftime("%Y-%m-%d")
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    last_year = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+    today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    # today = datetime.now().strftime("%Y-%m-%d")
+    tomorrow = (datetime.now() - timedelta(days=0)).strftime("%Y-%m-%d")
+    last_year = (datetime.now() - timedelta(days=185)).strftime("%Y-%m-%d")
     model_artifacts = load_model(model_path)
     model = model_artifacts.get("model")
     scaler = model_artifacts.get("scaler")
@@ -182,9 +184,8 @@ def update_prediction():
                 match.predicted_score = DataModels.MatchResult.draw        
             else:
                 match.predicted_score = DataModels.MatchResult.away
-        
             session.commit()
-            logger.info(f"Обновлено предсказание для матча {home_team} vs {away_team} ({match.start_match}): {match.predicted_score}")
+            logger.info(f"Обновлено предсказание для матча {home_team} vs {away_team} ({match.start_match}): {match.predicted_score}, вероятности - Home: {probabilities[0]:.2f}, Draw: {probabilities[1]:.2f}, Away: {probabilities[2]:.2f}")
     return 
 
 update_games_info()
