@@ -430,17 +430,21 @@ def train_final_model(data, feature_columns, target_column, best_params=None):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    if best_params is None:
-        best_params = {
-            'n_estimators': 100,
-            'max_depth': 10,
-            'min_samples_split': 5,
-            'min_samples_leaf': 2,
-            'class_weight': 'balanced'
-        }
+    # if best_params is None:
+    #     best_params = {
+    #         'n_estimators': 100,
+    #         'max_depth': 10,
+    #         'min_samples_split': 5,
+    #         'min_samples_leaf': 2,
+    #         'class_weight': 'balanced'
+    #     }
     
     final_model = RandomForestClassifier(
-        **best_params,
+        n_estimators=100,
+        max_depth=15,
+        min_samples_split=10,
+        min_samples_leaf=1,
+        class_weight={0: 1.0, 1: 2.0, 2: 0.8},
         random_state=42,
         n_jobs=-1
     )
@@ -603,9 +607,9 @@ data = weight_bookmaker_features(data, feature_columns, bookie_weight=1)
 
 # Кросс-валидация
 print("\n📊 Запуск K-Fold кросс-валидации...")
-cv_results, importance_df, scaler_cv = train_with_stratified_kfold(
-    data, feature_columns, target_column, n_splits=5
-)
+# cv_results, importance_df, scaler_cv = train_with_stratified_kfold(
+#     data, feature_columns, target_column, n_splits=5
+# )
 
 # Визуализация
 # print("\n📈 Создание визуализаций...")
@@ -618,22 +622,21 @@ holdout_model, holdout_scaler, y_test, y_pred, y_proba = evaluate_on_holdout(
 )
 
 # Финальная модель на всех данных
-# print("\n🏁 Обучение финальной модели...")
-# final_model, final_scaler = train_final_model(
-#     data, feature_columns, target_column, best_params
-# )
+print("\n🏁 Обучение финальной модели...")
+final_model, final_scaler = train_final_model(
+    data, feature_columns, target_column)
 
 # Запаковываем в модель
-# model_artifacts = {
-#     'model': final_model,
-#     'scaler': final_scaler,
-#     'feature_columns': feature_columns,
-#     'label_encoder': label_encoder,
-#     'model_name': "random_forest",
-# }
+model_artifacts = {
+    'model': final_model,
+    'scaler': final_scaler,
+    'feature_columns': feature_columns,
+    'label_encoder': label_encoder,
+    'model_name': "random_forest",
+}
 
 # # сохраняем артефакты с отметкой времени
-# timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-# filepath = rf"D:\Programming\Score_predictor\Trained modelsrandom_forest_{timestamp}.pkl"
-# joblib.dump(model_artifacts, filepath)
-# print(f"Model trained and saved {filepath}")
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+filepath = rf"D:\Programming\Score_predictor\Trained models\random_forest_{timestamp}.pkl"
+joblib.dump(model_artifacts, filepath)
+print(f"Model trained and saved {filepath}")

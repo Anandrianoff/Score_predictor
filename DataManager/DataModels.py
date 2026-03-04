@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime, timedelta 
+from time import strptime
 from typing import Optional
 from psycopg2 import IntegrityError
 from sqlalchemy import String, ForeignKey
@@ -249,6 +250,11 @@ def get_matches_by_date(session: Session, date: datetime) -> list[Match]:
         Список объектов Match за указанный день
     """
     try:
+        # Проверяем, что date - это datetime объект
+        if isinstance(date, str):
+            # Если пришла строка, преобразуем в datetime
+            date = datetime.strptime(date, "%Y-%m-%d")
+            
         end_date = date + timedelta(days=1)
         matches = session.query(Match).filter(
             Match.start_match >= date,
@@ -334,4 +340,27 @@ def add_team(
     except Exception as e:
         session.rollback()
         logger.error(f"Неожиданная ошибка при добавлении команды '{team_name}': {e}")
+        return None
+    
+def get_match_by_api_id(session: Session, match_api_id: int) -> Optional[Match]:
+    """
+    Получает матч по его API ID.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        match_api_id: ID матча из API
+    
+    Returns:
+        Объект Match или None, если матч не найден
+    """
+    try:
+        logger.info(f"Поиск матча с API ID '{match_api_id}'")
+        match = session.query(Match).filter(Match.match_api_id == match_api_id).first()
+        if match:
+            logger.info(f"Матч с API ID '{match_api_id}' найден: {match.home_team} vs {match.away_team} (ID {match.match_id})")
+        else:
+            logger.warning(f"Матч с API ID '{match_api_id}' не найден")
+        return match
+    except Exception as e:
+        logger.error(f"Ошибка при получении матча по API ID '{match_api_id}': {e}")
         return None
