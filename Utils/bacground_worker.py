@@ -1,9 +1,14 @@
+import os
 import sys
 import joblib
 import numpy as np
 from sqlalchemy import create_engine, text
-sys.path.append(r'D:\Programming\Score_predictor')
-sys.path.append(r'D:\Programming\Score_predictor\DataManager')
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+data_manager_path = os.path.join(root_dir, 'DataManager')
+print (data_manager_path)
+sys.path.append(data_manager_path)
 import api_models
 from api_models import MatchesResponse
 import DataModels
@@ -12,8 +17,7 @@ from datetime import datetime
 import requests
 from datetime import timedelta
 import logging
-import pandas as pd
-from Utils import utils
+
 
 
 db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'

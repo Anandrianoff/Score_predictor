@@ -1,16 +1,24 @@
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sister_dir = os.path.join(current_dir, 'app')
+sys.path.append(sister_dir)
+
 import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
 from create_bot import dp, bot
-from ludobot.app.handlers import router
-from ludobot.app.logic_for_channel import daily_send
+from handlers import router
+from logic_for_channel import daily_send
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
 scheduler = AsyncIOScheduler()
 
 async def main():
-    scheduler.add_job(daily_send, 'cron', hour = 9)
+    scheduler.add_job(daily_send, 'cron', hour = 11, minute = 30)
     dp.include_router(router)
     await dp.start_polling(bot)
 
