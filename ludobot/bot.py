@@ -1,23 +1,22 @@
 import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
-from aiogram import Bot, Dispatcher
-import os
-from dotenv import load_dotenv
-from handlers import handlers
+from create_bot import dp, bot
+from ludobot.app.handlers import router
+from ludobot.app.logic_for_channel import daily_send
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+
+scheduler = AsyncIOScheduler()
 
 async def main():
-    load_dotenv()
-    TOKEN = os.getenv('TOKEN')
-    bot = Bot(token=TOKEN)
-    dp = Dispatcher()
-    dp.include_router(handlers)
+    scheduler.add_job(daily_send, 'cron', hour = 9)
+    dp.include_router(router)
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    handler = RotatingFileHandler("app.log", maxBytes=1_000_000, backupCount=6)
+    handler = RotatingFileHandler("ludobot.log", maxBytes=1_000_000, backupCount=6)
 
     logging.basicConfig(
         level=logging.INFO,
