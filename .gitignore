@@ -1,6 +1,7 @@
 test.py
 *.png
 *.session
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

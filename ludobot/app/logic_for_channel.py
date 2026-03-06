@@ -15,19 +15,25 @@ from datetime import date, timedelta
 from create_bot import bot
 import os
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 load_dotenv()
 CHANNEL_ID = os.getenv('CHANNEL_ID') # Замените на ID вашего канала
 bet_size = 1000
 
 async def daily_send():
-    today_matches = await get_matches(date.today())
+    #today_matches = await get_matches(date.today())
+    today_matches = await get_matches('2026-03-01')
     today_matches_message = await make_bets(today_matches)
     yesterday_matches = await get_matches(date.today() - timedelta(days=1))
     yesterday_matches_message = await build_yesterday_matches_list(yesterday_matches)
     message = today_matches_message + yesterday_matches_message
-
-    await bot.send_message(CHANNEL_ID, message)
+    message = message.strip()
+    if message:
+        await bot.send_message(CHANNEL_ID, message)
 
 
 async def get_matches(match_date):
@@ -50,7 +56,7 @@ async def make_bets(matches: MatchesResponse):
             match_result = f'Предполагаемый победитель: {match.away_team_name_rus}'
         else:
             match_result = 'Предполагаемый исход - ничья'
-        list_of_matches += f'{number}. {match.home_team_name_rus} VS {match.away_team_name_rus}. \n{match_result}\nДелаем ставку {bet_size} с коэффициентом {match.odd}\n\n'
+        list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. \n{match_result}\nДелаем ставку {bet_size} с коэффициентом {match.odd}\n\n'
     
     return list_of_matches
 

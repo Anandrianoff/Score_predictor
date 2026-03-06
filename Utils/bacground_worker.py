@@ -7,7 +7,6 @@ from sqlalchemy import create_engine, text
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 data_manager_path = os.path.join(root_dir, 'DataManager')
-print (data_manager_path)
 sys.path.append(data_manager_path)
 import api_models
 from api_models import MatchesResponse
@@ -17,10 +16,12 @@ from datetime import datetime
 import requests
 from datetime import timedelta
 import logging
+from dotenv import load_dotenv
 
+load_dotenv()
+DB_PASSWORD = os.getenv('DB_PASSWORD')
 
-
-db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
 Base_url = "https://api.sstats.net"
 model_path = rf"D:\Programming\Score_predictor\Trained models\random_forest_20260226_134721.pkl"
 logging.basicConfig(level=logging.INFO)

@@ -6,7 +6,6 @@ from sqlalchemy import create_engine, text
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 data_manager_path = os.path.join(root_dir, 'DataManager')
-print (data_manager_path)
 sys.path.append(data_manager_path)
 from api_models import MatchesResponse
 import DataModels
@@ -16,11 +15,14 @@ import requests
 from datetime import timedelta
 import logging
 import pandas as pd
+from dotenv import load_dotenv
 
+load_dotenv()
+DB_PASSWORD = os.getenv('DB_PASSWORD')
 
-db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
 Base_url = "https://api.sstats.net"
-model_path = rf"D:\Programming\Score_predictor\Trained models\Trained modelsrandom_forest_20260304_201754.pkl"
+model_path = current_dir + "/Trained modelsrandom_forest_20260304_201754.pkl"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 engine = create_engine(db_path)
@@ -50,7 +52,7 @@ def load_model(model_path):
     return model_artifacts
 
 def update_prediction():
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     # today = datetime(2026, 3, 1).strftime("%Y-%m-%d")
     model_artifacts = load_model(model_path)
     model = model_artifacts.get("model")

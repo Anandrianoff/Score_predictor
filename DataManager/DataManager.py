@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime, timedelta 
 import requests
 
-db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'
+db_path = 'postgresql+psycopg2://postgres:ZW1tSsuEXZh4cs@localhost:5432/DbScore'
 Base_url = "https://api.sstats.net"
 
 engine = create_engine(db_path)
