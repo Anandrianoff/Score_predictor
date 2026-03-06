@@ -1,0 +1,26 @@
+services:
+  score_predictor:
+    image: score_predictor
+    build:
+      context: .
+    restart: always
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD}
+      TOKEN: ${TOKEN}
+      CHANNEL_ID: ${CHANNEL_ID}
+      TZ: Europe/Samara
+    volumes:
+      - app-data:/app/data
+    networks:
+      - bot-network
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  app-data:
+
+networks:
+  bot-network:
+    driver: bridge

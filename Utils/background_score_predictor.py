@@ -19,8 +19,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
 
-db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
 Base_url = "https://api.sstats.net"
 model_path = current_dir + "/Trained modelsrandom_forest_20260304_201754.pkl"
 logging.basicConfig(level=logging.INFO)
@@ -191,5 +192,3 @@ def update_prediction_with_form():
             logger.info(f"Обновлено предсказание для матча {home_team} vs {away_team} ({match.start_match}): {match.predicted_score}, вероятности - Home: {probabilities[0]:.2f}, Draw: {probabilities[1]:.2f}, Away: {probabilities[2]:.2f}")
     return
 
-
-update_prediction()

@@ -12,8 +12,9 @@ import os
 
 load_dotenv()
 DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
 
-db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
 Base_url = "https://api.sstats.net"
 
 engine = create_engine(db_path)

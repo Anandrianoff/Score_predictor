@@ -8,10 +8,10 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY DataManager .
+COPY DataManager/ ./DataManager
 
-COPY ludobot .
+COPY ludobot/ ./ludobot
 
-COPY Utils .
+COPY Utils/ ./Utils
 
 CMD ["python", "ludobot/bot.py"]

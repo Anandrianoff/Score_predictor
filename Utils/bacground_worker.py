@@ -20,8 +20,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
 
-db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
 Base_url = "https://api.sstats.net"
 model_path = rf"D:\Programming\Score_predictor\Trained models\random_forest_20260226_134721.pkl"
 logging.basicConfig(level=logging.INFO)
@@ -85,4 +86,4 @@ def update_games_info(date_from=None, date_to=None):
     return 
 
 update_games_info()
-# update_prediction()
+#update_prediction()
