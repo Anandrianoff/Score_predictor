@@ -1,8 +1,6 @@
 import sys
 import time
 from sqlalchemy import create_engine, text
-sys.path.append(r'D:\Programming\Score_predictor')
-sys.path.append(r'D:\Programming\Score_predictor\DataManager')
 import api_models
 from api_models import MatchesResponse
 import DataModels
@@ -118,6 +116,21 @@ def add_matches(from_date, to_date):
                 time.sleep(1.5)  # Небольшая задержка между запросами, чтобы не перегружать API
     return 
 
+def make_bet(
+    match_id: int,
+    bet_amount: float,
+    bet_type: DataModels.MatchResult,
+    bet_odds: float):
+        with Session() as session:
+            return DataModels.add_bet(session, match_id, bet_amount, bet_type, bet_odds)
+
+def update_bet_result_by_match_id(match_id: int, winner_fact: DataModels.MatchResult):
+    with Session() as session:
+        bets = DataModels.get_bets_by_match_id(session, match_id)
+        for bet in bets:
+            DataModels.update_bet_result(session, bet.bet_id, winner_fact)
+        return bets
+
 def get_matches_by_date(date):
     matches_response = MatchesResponse()
     matches_response.date = date
@@ -126,7 +139,7 @@ def get_matches_by_date(date):
         matches = DataModels.get_matches_by_date(session, date)
         if matches:
             for match in matches:
-                filled_match = api_models.Match()
+                filled_match = api_models.MatchDTO()
                 filled_match.match_id = match.match_id
                 filled_match.home_team_id = match.home_team
                 filled_match.home_team_name_rus = DataModels.get_team_by_id(session, match.home_team).team_name_rus
@@ -134,15 +147,15 @@ def get_matches_by_date(date):
                 filled_match.away_team_name_rus = DataModels.get_team_by_id(session, match.away_team).team_name_rus
                 filled_match.winner_predict = match.predicted_score
                 filled_match.winner_fact = match.winner
-                if match.predicted_score == "h":
+                if match.predicted_score == DataModels.MatchResult.home:
                     filled_match.odd = match.psch
-                elif match.predicted_score == "d":
+                elif match.predicted_score == DataModels.MatchResult.draw:
                     filled_match.odd = match.pscd
-                elif match.predicted_score == "a":
+                elif match.predicted_score == DataModels.MatchResult.away:
                     filled_match.odd = match.psca
+                print(f"filled_match: {filled_match.__dict__}")
                 matches_response.matches.append(filled_match)
     return matches_response
-
 
 
 # Заполнение базы данных командами и будущими матчами            

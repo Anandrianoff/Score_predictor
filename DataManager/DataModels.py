@@ -60,6 +60,127 @@ class Match(Base):
     glicko_away_vol: Mapped[Optional[float]]
     predicted_score: Mapped[Optional[MatchResult]]
 
+class Bet(Base):
+    __tablename__ = 'bets'
+    bet_id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey('matches.match_id'))
+    bet_amount: Mapped[float]
+    bet_type: Mapped[MatchResult]  # home/away/draw
+    bet_odds: Mapped[float]
+    bet_result: Mapped[Optional[MatchResult]]  # home/away/draw или NULL, если результат еще неизвестен
+    bet_profit: Mapped[Optional[float]]  # выигрыш от ставки, может быть отрицательным в случае проигрыша
+
+def update_bet_result(
+    session: Session,
+    bet_id: int,
+    match_result: MatchResult
+) -> Optional[Bet]:
+    """
+    Обновляет результат ставки после завершения матча.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        bet_id: ID ставки для обновления
+        match_result: Результат матча (home/away/draw)
+    
+    Returns:
+        Объект Bet с обновленным результатом или None в случае ошибки
+    """
+    try:
+        bet = session.get(Bet, bet_id)
+        if not bet:
+            logger.error(f"Ставка с ID {bet_id} не найдена")
+            return None
+        
+        bet.bet_result = match_result
+        
+        # Вычисляем прибыль от ставки
+        if bet.bet_type == match_result:
+            bet.bet_profit = bet.bet_amount * (bet.bet_odds - 1)  # Выигрыш минус ставка
+        else:
+            bet.bet_profit = -bet.bet_amount  # Проигрыш равен сумме ставки
+        
+        session.commit()
+        
+        logger.info(f"✅ Ставка #{bet_id} обновлена с результатом {match_result} и прибылью {bet.bet_profit}")
+        
+        return bet
+        
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Ошибка при обновлении ставки с ID {bet_id}: {e}")
+        return None
+
+def add_bet(
+    session: Session,
+    match_id: int,
+    bet_amount: float,
+    bet_type: MatchResult,
+    bet_odds: float
+) -> Optional[Bet]:
+    """
+    Добавляет новую ставку в базу данных.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        match_id: ID матча, на который делается ставка
+        bet_amount: Сумма ставки
+        bet_type: Тип ставки (home/away/draw)
+        bet_odds: Коэффициент ставки
+    
+    Returns:
+        Объект Bet или None в случае ошибки
+    """
+    try:
+        # Проверяем существование матча
+        match = get_match_by_id(session, match_id)
+        if not match:
+            logger.error(f"Матч с ID {match_id} не найден")
+            return None
+        
+        # Создаем новую ставку
+        new_bet = Bet(
+            match_id=match_id,
+            bet_amount=bet_amount,
+            bet_type=bet_type,
+            bet_odds=bet_odds
+        )
+        
+        session.add(new_bet)
+        session.commit()
+        
+        logger.info(f"✅ Ставка #{new_bet.bet_id} добавлена на матч ID {match_id}")
+        
+        return new_bet
+        
+    except IntegrityError as e:
+        session.rollback()
+        logger.error(f"Ошибка целостности данных при добавлении ставки на матч ID {match_id}: {e}")
+        return None
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Неожиданная ошибка при добавлении ставки на матч ID {match_id}: {e}")
+        return None
+
+def get_bets_by_match_id(session: Session, match_id: int) -> list[Bet]:
+    """
+    Получает все ставки для указанного матча.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        match_id: ID матча для получения ставок
+    
+    Returns:
+        Список объектов Bet для данного матча
+    """
+    try:
+        bets = session.query(Bet).filter(Bet.match_id == match_id).all()
+        logger.info(f"Найдено {len(bets)} ставок для матча ID {match_id}")
+        return bets
+    except Exception as e:
+        logger.error(f"Ошибка при получении ставок для матча ID {match_id}: {e}")
+        return []
+
 def add_team(
     session: Session,
     team_name: str,
@@ -363,4 +484,26 @@ def get_match_by_api_id(session: Session, match_api_id: int) -> Optional[Match]:
         return match
     except Exception as e:
         logger.error(f"Ошибка при получении матча по API ID '{match_api_id}': {e}")
+        return None
+    
+def get_match_by_id(session: Session, match_id: int) -> Optional[Match]:
+    """
+    Получает матч по его ID.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        match_id: ID матча
+    
+    Returns:
+        Объект Match или None, если матч не найден
+    """
+    try:
+        match = session.get(Match, match_id)
+        if match:
+            logger.info(f"Матч с ID {match_id} найден: {match.home_team} vs {match.away_team}")
+        else:
+            logger.warning(f"Матч с ID {match_id} не найден")
+        return match
+    except Exception as e:
+        logger.error(f"Ошибка при получении матча с ID {match_id}: {e}")
         return None

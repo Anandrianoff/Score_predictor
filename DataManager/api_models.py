@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime
 
-class Match():
+class MatchDTO():
     match_id: int
     home_team_id: int
     home_team_name_rus: str
@@ -14,4 +14,4 @@ class Match():
 
 class MatchesResponse():
     date: datetime
-    matches: List[Match]
+    matches: List[MatchDTO]
