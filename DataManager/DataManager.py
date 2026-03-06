@@ -7,8 +7,13 @@ import DataModels
 from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime, timedelta 
 import requests
+from dotenv import load_dotenv
+import os
 
-db_path = 'postgresql+psycopg2://postgres:ZW1tSsuEXZh4cs@localhost:5432/DbScore'
+load_dotenv()
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+
+db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/DbScore'
 Base_url = "https://api.sstats.net"
 
 engine = create_engine(db_path)
