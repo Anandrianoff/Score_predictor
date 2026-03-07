@@ -24,7 +24,6 @@ DB_HOST = os.getenv('DB_HOST')
 
 db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
 Base_url = "https://api.sstats.net"
-model_path = rf"D:\Programming\Score_predictor\Trained models\random_forest_20260226_134721.pkl"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 engine = create_engine(db_path)
@@ -85,5 +84,3 @@ def update_games_info(date_from=None, date_to=None):
                 session.commit()
     return 
 
-update_games_info()
-#update_prediction()

@@ -40,7 +40,7 @@ async def get_matches(match_date):
     return matches_result.matches
 
 
-async def make_bets(matches: MatchesResponse):
+async def make_bets(matches):
     if not matches:
         return ''
     

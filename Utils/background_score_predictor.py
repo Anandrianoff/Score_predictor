@@ -53,8 +53,7 @@ def load_model(model_path):
     return model_artifacts
 
 def update_prediction():
-    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    # today = datetime(2026, 3, 1).strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
     model_artifacts = load_model(model_path)
     model = model_artifacts.get("model")
     scaler = model_artifacts.get("scaler")
