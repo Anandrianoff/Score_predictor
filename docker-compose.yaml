@@ -8,6 +8,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       TOKEN: ${TOKEN}
       CHANNEL_ID: ${CHANNEL_ID}
+      ADMIN: ${ADMIN}
       TZ: Europe/Samara
     volumes:
       - app-data:/app/data

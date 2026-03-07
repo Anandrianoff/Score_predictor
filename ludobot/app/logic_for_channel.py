@@ -25,8 +25,7 @@ CHANNEL_ID = os.getenv('CHANNEL_ID') # Замените на ID вашего к�
 bet_size = 1000
 
 async def daily_send():
-    #today_matches = await get_matches(date.today())
-    today_matches = await get_matches('2026-03-01')
+    today_matches = await get_matches(date.today())
     today_matches_message = await make_bets(today_matches)
     yesterday_matches = await get_matches(date.today() - timedelta(days=1))
     yesterday_matches_message = await build_yesterday_matches_list(yesterday_matches)
