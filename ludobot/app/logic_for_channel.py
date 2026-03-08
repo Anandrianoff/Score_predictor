@@ -19,7 +19,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 load_dotenv()
 CHANNEL_ID = os.getenv('CHANNEL_ID') # Замените на ID вашего канала
 bet_size = 1000
@@ -46,7 +45,7 @@ async def make_bets(matches):
     
     list_of_matches = f'Список матчей на сегодня:\n'
     for number, match in enumerate(matches):
-        print(type(match))
+        print(match.odd)
         make_bet(match.match_id, bet_size, match.winner_predict, match.odd)
         match_result = ''
         if match.winner_predict == DataModels.MatchResult.home:
@@ -60,22 +59,23 @@ async def make_bets(matches):
     return list_of_matches
 
 
-async def build_yesterday_matches_list(matches: MatchesResponse):
+async def build_yesterday_matches_list(matches):
     if not matches:
         return ''
     day_profit = 0
     list_of_matches = f'\nИтоги вчерашних матчей:\n'
-    for number, match in enumerate(matches.matches):
-        bet = update_bet_result_by_match_id(match.match_id, match.winner_fact).first()
-        day_profit -= bet.bet_amount
-        if match.winner_predict == match.winner_fact:
-            bet_result = 'зашла'
-            profit = bet.bet_amount * bet.odd
-            day_profit += profit
-        else:
-            bet_result = 'не зашла'
-            profit = 0
-        
-        list_of_matches += f'{number}. {match.home_team_name_rus} VS {match.away_team_name_rus}. Победитель: {match.winner_fact}. Ставка {bet_result}, коэффициент: {bet.odd}. Выигрыш: {profit}\n'
+    for number, match in enumerate(matches):
+        bet = update_bet_result_by_match_id(match.match_id, match.winner_fact)
+        if bet:
+            day_profit -= bet.bet_amount
+            if match.winner_predict == match.winner_fact:
+                bet_result = 'зашла'
+                profit = bet.bet_amount * bet.bet_odds
+                day_profit += profit
+            else:
+                bet_result = 'не зашла'
+                profit = 0
+
+            list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. Победитель: {match.winner_fact}. Ставка {bet_result}, коэффициент: {bet.bet_odds}. Выигрыш: {profit}\n'
     list_of_matches += f'\nИтог дня: {"прибыль" if day_profit > 0 else "убыток"} {abs(day_profit)}'
     return list_of_matches

@@ -26,6 +26,7 @@ async def main():
     scheduler.add_job(update_games_info, 'cron', hour = 11, minute = 25)
     scheduler.add_job(update_prediction, 'cron', hour = 11, minute = 27)
     scheduler.start()
+
     dp.include_router(router)
     await dp.start_polling(bot)
 

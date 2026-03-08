@@ -133,9 +133,12 @@ def make_bet(
 def update_bet_result_by_match_id(match_id: int, winner_fact: DataModels.MatchResult):
     with Session() as session:
         bets = DataModels.get_bets_by_match_id(session, match_id)
-        for bet in bets:
+        if bets:
+            bet = bets[0]
+            print(f"Нашлась ставка с id {bet.bet_id} и кэф {bet.bet_odds}")
             DataModels.update_bet_result(session, bet.bet_id, winner_fact)
-        return bets
+            return bet
+        return None
 
 def get_matches_by_date(date):
     matches_response = MatchesResponse()
@@ -153,6 +156,7 @@ def get_matches_by_date(date):
                 filled_match.away_team_name_rus = DataModels.get_team_by_id(session, match.away_team).team_name_rus
                 filled_match.winner_predict = match.predicted_score
                 filled_match.winner_fact = match.winner
+                print(match.predicted_score)
                 if match.predicted_score == DataModels.MatchResult.home:
                     filled_match.odd = match.psch
                 elif match.predicted_score == DataModels.MatchResult.draw:

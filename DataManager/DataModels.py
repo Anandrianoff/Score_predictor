@@ -96,7 +96,7 @@ def update_bet_result(
         
         # Вычисляем прибыль от ставки
         if bet.bet_type == match_result:
-            bet.bet_profit = bet.bet_amount * (bet.bet_odds - 1)  # Выигрыш минус ставка
+            bet.bet_profit = bet.bet_amount * (bet.bet_odds)  # Выигрыш минус ставка
         else:
             bet.bet_profit = -bet.bet_amount  # Проигрыш равен сумме ставки
         
