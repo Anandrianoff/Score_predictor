@@ -28,7 +28,7 @@ async def daily_send():
     today_matches_message = await make_bets(today_matches)
     yesterday_matches = await get_matches(date.today() - timedelta(days=1))
     yesterday_matches_message = await build_yesterday_matches_list(yesterday_matches)
-    message = today_matches_message + yesterday_matches_message
+    message =  today_matches_message + yesterday_matches_message
     message = message.strip()
     if message:
         await bot.send_message(CHANNEL_ID, message)
@@ -75,7 +75,12 @@ async def build_yesterday_matches_list(matches):
             else:
                 bet_result = 'не зашла'
                 profit = 0
-
-            list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. Победитель: {match.winner_fact}. Ставка {bet_result}, коэффициент: {bet.bet_odds}. Выигрыш: {profit}\n'
+            if match.winner_fact == DataModels.MatchResult.home:
+                result = f"Победитель: {match.home_team_name_rus}"
+            elif match.winner_fact == DataModels.MatchResult.away:
+                result = f"Победитель: {match.away_team_name_rus}"
+            else:
+                result = f"Ничья"
+            list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. {result}. Ставка {bet_result}, коэффициент: {bet.bet_odds}. Выигрыш: {profit}\n'
     list_of_matches += f'\nИтог дня: {"прибыль" if day_profit > 0 else "убыток"} {abs(day_profit)}'
     return list_of_matches

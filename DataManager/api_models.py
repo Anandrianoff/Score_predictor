@@ -1,5 +1,6 @@
 from typing import List
 from datetime import datetime
+from DataModels import MatchResult
 
 class MatchDTO():
     match_id: int
@@ -9,7 +10,7 @@ class MatchDTO():
     away_team_name_rus: str
     winner_predict: str
     odd: float
-    winner_fact: str | None = None
+    winner_fact: MatchResult | None = None
 
 
 class MatchesResponse():
