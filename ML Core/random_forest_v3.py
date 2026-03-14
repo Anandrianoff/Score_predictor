@@ -1,12 +1,18 @@
-from posixpath import join
+# Третья версия случайного леса. 
+# Список признаков: 'glicko_home_rating', 'glicko_home_rd', 'glicko_home_vol', 'glicko_away_rating', 'glicko_away_rd', 
+# 'glicko_away_vol', 'psch', 'pscd', 'psca', 'rating_diff', 'rating_sum', 'rating_ratio', 'home_rd_inv', 'away_rd_inv', 
+# 'rd_diff', 'rating_vs_bookie'
+# Отличия от V2 подобраны пороги срабатывания для ничьи или победы гостей. Использует ThresholdRFClassifier
+# Лучшие пороги: {0: np.float64(0.6000000000000002), 1: np.float64(0.5000000000000001), 2: np.float64(0.30000000000000004)}
 
+from posixpath import join
 import joblib
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, precision_recall_curve, f1_score
 from sklearn.dummy import DummyClassifier
 from sqlalchemy import asc
 import xgboost as xgb
@@ -22,6 +28,8 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
+import joblib
+from ThresholdRFClassifier import ThresholdRFClassifier
 
 db_path = 'postgresql+psycopg2://postgres:1234@localhost:5432/DbScore'
 sql = "select t_h.team_name as Home, t_a.team_name as Away, start_match ::timestamp::date as date, home_goals as HG, away_goals as AG, psch as PSCH, pscd as PSCD,psca as PSCA,winner,glicko_home_rating,glicko_home_rd,glicko_home_vol,glicko_away_rating,glicko_away_rd,glicko_away_vol from matches join teams as t_h on home_team = t_h.team_id join teams as t_a on away_team=t_a.team_id where glicko_home_rd > 0 and start_match < '2026-03-03' order by start_match asc"
@@ -50,14 +58,6 @@ def create_features(df):
         away_team = row['away']
         match_date = row['date']
         
-        # # Форма команд (последние 5 матчей с весами)
-        # home_form = calculate_team_form(home_team, match_date, df)
-        # away_form = calculate_team_form(away_team, match_date, df)
-        
-        # # Общая статистика команд
-        # home_stats = calculate_team_stats(home_team, match_date, df)
-        # away_stats = calculate_team_stats(away_team, match_date, df)
-        
         # Коэффициенты букмекеров (нормализованные)
         psch = row.get('psch', np.nan)
         pscd = row.get('pscd', np.nan)
@@ -67,38 +67,6 @@ def create_features(df):
         home_advantage = 10  # Можно экспериментировать с этим значением
         
         feature_row = {
-            # Форма команд
-            # 'home_form_points': home_form['form_points'],
-            # 'away_form_points': away_form['form_points'],
-            # 'home_form_goals_scored': home_form['form_goals_scored'],
-            # 'away_form_goals_scored': away_form['form_goals_scored'],
-            # 'home_form_goals_conceded': home_form['form_goals_conceded'],
-            # 'away_form_goals_conceded': away_form['form_goals_conceded'],
-            # 'home_form_matches': home_form['form_matches_played'],
-            # 'away_form_matches': away_form['form_matches_played'],
-            # 'home_avg_form_points': home_form['avg_form_points'],
-            # 'away_avg_form_points': away_form['avg_form_points'],
-            
-            # Общая статистика
-            # 'home_total_points': home_stats['total_points'],
-            # 'away_total_points': away_stats['total_points'],
-            # 'home_total_goals_scored': home_stats['total_goals_scored'],
-            # 'away_total_goals_scored': away_stats['total_goals_scored'],
-            # 'home_total_goals_conceded': home_stats['total_goals_conceded'],
-            # 'away_total_goals_conceded': away_stats['total_goals_conceded'],
-            # 'home_matches_played': home_stats['total_matches'],
-            # 'away_matches_played': away_stats['total_matches'],
-            # 'home_avg_points': home_stats['avg_points_per_match'],
-            # 'away_avg_points': away_stats['avg_points_per_match'],
-            
-            # Разница в форме и статистике
-            # 'form_points_diff': home_form['form_points'] - away_form['form_points'],
-            # 'avg_points_diff': home_stats['avg_points_per_match'] - away_stats['avg_points_per_match'],
-            # 'goals_scored_diff': home_stats['total_goals_scored']/max(1, home_stats['total_matches']) - 
-            #                     away_stats['total_goals_scored']/max(1, away_stats['total_matches']),
-            # 'goals_conceded_diff': home_stats['total_goals_conceded']/max(1, home_stats['total_matches']) - 
-            #                       away_stats['total_goals_conceded']/max(1, away_stats['total_matches']),
-            
             # Преимущество домашней команды
             'glicko_home_rating': row['glicko_home_rating'] + home_advantage,
             'glicko_home_rd': row['glicko_home_rd'],
@@ -129,15 +97,6 @@ features_df = features_df.dropna().reset_index(drop=True)
 
 print(f"Размер датасета с признаками: {features_df.shape}")
 print(f"Распределение классов:\n{features_df['target'].value_counts()}")
-
-
-# # Разделение на признаки и целевую переменную
-# X = features_df.drop('target', axis=1)
-# y = features_df['target']
-
-# # Масштабирование признаков
-# scaler = StandardScaler()
-# X_scaled = scaler.fit_transform(X)
 
 def prepare_features(df):
     """
@@ -206,7 +165,7 @@ def prepare_features(df):
 # 2. ОБУЧЕНИЕ С STRATIFIED K-FOLD
 # ============================================
 
-def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5):
+def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5, best_thresholds=None):
     """
     Обучает Random Forest со стратифицированной K-Fold кросс-валидацией
     """
@@ -223,19 +182,15 @@ def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
     # Базовая модель
-    base_model = RandomForestClassifier(
+    base_model = ThresholdRFClassifier(
+        thresholds = best_thresholds,
         n_estimators=100,
-        max_depth=10,
-        min_samples_split=5,
-        min_samples_leaf=5,
-        class_weight={
-        0: 1.0,  # гости
-        1: 2.0,  # ничья - удвоенный вес
-        2: 0.8   # хозяева - чуть уменьшить
-        },
+        max_depth=15,
+        min_samples_split=10,
+        min_samples_leaf=1,
+        class_weight={0: 1.0, 1: 2.0, 2: 0.8},
         random_state=42,
-        n_jobs=-1,
-    )
+        n_jobs=-1)
     
     # Метрики для кросс-валидации
     scoring = {
@@ -261,7 +216,7 @@ def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5
     print("=" * 60)
     print(f"РЕЗУЛЬТАТЫ {n_splits}-FOLD СТРАТИФИЦИРОВАННОЙ КРОСС-ВАЛИДАЦИИ")
     print("=" * 60)
-    
+
     # Выводим результаты по каждой метрике
     for metric in scoring.keys():
         train_scores = cv_results[f'train_{metric}']
@@ -274,6 +229,8 @@ def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5
         if metric == 'f1_macro':
             best_f1 = test_scores.mean()
     
+    print(cv_results['test_accuracy'])
+
     # Проверка на переобучение
     train_acc = cv_results['train_accuracy'].mean()
     test_acc = cv_results['test_accuracy'].mean()
@@ -298,7 +255,7 @@ def train_with_stratified_kfold(data, feature_columns, target_column, n_splits=5
     print("\nТОП-10 НАИБОЛЕЕ ВАЖНЫХ ПРИЗНАКОВ:")
     print(importance_df.head(10).to_string(index=False))
     
-    corr_matrix = data[['psch', 'pscd', 'psca', 'rating_diff', 'rating_ratio',  
+    corr_matrix = data[['glicko_away_rd', 'glicko_home_rd', 'away_rd_inv', 'home_rd_inv', 'rating_diff', 'rating_ratio',  
                   'glicko_home_rating', 'glicko_away_rating']].corr()
 
     plt.figure(figsize=(10, 8))
@@ -419,7 +376,7 @@ def visualize_results(cv_results, importance_df, data, feature_columns, target_c
 # 5. ФИНАЛЬНАЯ МОДЕЛЬ
 # ============================================
 
-def train_final_model(data, feature_columns, target_column, best_params=None):
+def train_final_model(data, feature_columns, target_column, best_thresholds, best_params=None):
     """
     Обучает финальную модель на всех данных
     """
@@ -430,16 +387,8 @@ def train_final_model(data, feature_columns, target_column, best_params=None):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # if best_params is None:
-    #     best_params = {
-    #         'n_estimators': 100,
-    #         'max_depth': 10,
-    #         'min_samples_split': 5,
-    #         'min_samples_leaf': 2,
-    #         'class_weight': 'balanced'
-    #     }
-    
-    final_model = RandomForestClassifier(
+    final_model = ThresholdRFClassifier(
+        thresholds=best_thresholds,
         n_estimators=100,
         max_depth=15,
         min_samples_split=10,
@@ -453,6 +402,7 @@ def train_final_model(data, feature_columns, target_column, best_params=None):
     print("ОБУЧЕНИЕ ФИНАЛЬНОЙ МОДЕЛИ НА ВСЕХ ДАННЫХ")
     print("=" * 60)
     print(f"Параметры: {best_params}")
+    print(f"Параметры thresholds: {best_thresholds}")
     print(f"Размер обучающей выборки: {len(X)}")
     
     final_model.fit(X_scaled, y)
@@ -471,7 +421,7 @@ def train_final_model(data, feature_columns, target_column, best_params=None):
 # 6. ОЦЕНКА НА ОТЛОЖЕННОЙ ВЫБОРКЕ
 # ============================================
 
-def evaluate_on_holdout(data, feature_columns, target_column, test_size=0.2):
+def evaluate_on_holdout(data, feature_columns, target_column, best_thresholds, test_size=0.2):
     """
     Дополнительная оценка на отложенной выборке
     """
@@ -488,48 +438,10 @@ def evaluate_on_holdout(data, feature_columns, target_column, test_size=0.2):
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-    # МОЖНО ВЫПИЛИТЬ
-#     results = []
 
-#     weight_grid = [
-#     # Около версии 2
-#     {0: 1.0, 1: 1.5, 2: 0.8},  # версия 2
-#     {0: 1.1, 1: 1.5, 2: 0.8},  # чуть больше гостей
-#     {0: 1.0, 1: 1.6, 2: 0.8},  # чуть больше ничьих
-#     {0: 1.0, 1: 1.5, 2: 0.7},  # чуть меньше хозяев
-#     {0: 1.1, 1: 1.4, 2: 0.8},  # гости +, ничьи -
-#     {0: 1.0, 1: 2.0, 2: 0.8},  # сильнее выделяем ничьи, МОЙ ВАРИАНТ
-#     {0: 1.0, 1: 1.5, 2: 0.9},  # чуть меньше гостей
-#     {0: 0.9, 1: 1.5, 2: 0.8},  # чуть меньше гостей
-#     {0: 1.0, 1: 1.4, 2: 0.7},  # гости +, хозяева -
-#     {0: 1.2, 1: 1.5, 2: 0.8},  # больше гостей
-#     {0: 1.0, 1: 1.7, 2: 0.8},  # сильнее выделяем ничьи
-#     {0: 1.3, 1: 1.5, 2: 0.8},  # еще больше гостей
-#     {0: 1.0, 1: 1.5, 2: 0.6},   # еще меньше хозяев
-#     ]
-
-#     for weights in weight_grid:
-#         mdl = RandomForestClassifier(
-#             class_weight=weights,
-#             random_state=42,
-#             n_jobs=-1
-#         )
-#         # Кросс-валидация
-#         scores = cross_val_score(mdl, X, y, cv=5, scoring='f1_macro')
-#         results.append({
-#             'weights': weights,
-#             'f1_macro': scores.mean(),
-#             'f1_std': scores.std()
-#         })
-
-# # Выберите лучший вариант
-#     best_weights = max(results, key=lambda x: x['f1_macro'])
-#     print(f"Лучшие веса: {best_weights['weights']}")
-    
-
-    # КОНЕЦ ВЫПИЛИВАНИЯ
     # Модель
-    model = RandomForestClassifier(
+    model = ThresholdRFClassifier(
+        thresholds=best_thresholds,
         n_estimators=100,
         max_depth=15,
         min_samples_split=10,
@@ -538,7 +450,7 @@ def evaluate_on_holdout(data, feature_columns, target_column, test_size=0.2):
         random_state=42,
         n_jobs=-1
     )
-    
+
     model.fit(X_train_scaled, y_train)
     
     # Предсказания
@@ -570,35 +482,110 @@ def evaluate_on_holdout(data, feature_columns, target_column, test_size=0.2):
     
     return model, scaler, y_test, y_pred, y_pred_proba
 
-def weight_bookmaker_features(df, feature_columns, bookie_weight=0.3):
+# ============================================
+# НАХОДИМ ОПТИМАЛЬНЫЕ ПОРОГИ СРАБАТЫВАНИЙ ДЛЯ КЛАССОВ
+# ============================================
+def find_tresholds(data, feature_columns, target_column, test_size=0.2, strategy = 'f1'):
+    X = data[feature_columns].values
+    y = data[target_column].values
+    
+    # Разбиение на обучение и тест
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, stratify=y, random_state=42
+    )
+    
+    # Масштабирование
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Базовая модель
+    model = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=15,
+        min_samples_split=10,
+        min_samples_leaf=1,
+        class_weight={0: 1.0, 1: 2.0, 2: 0.8},
+        random_state=42,
+        n_jobs=-1
+    )
+
+    model.fit(X_train_scaled, y_train)
+    # 2. ПОЛУЧИМ вероятности 
+    y_proba_test = model.predict_proba(X_test_scaled)
+  
+    best_f1_macro = 0
+    best_thresholds = {}
+    
+    # Диапазон порогов
+    thresholds_range = np.arange(0.1, 0.8, 0.05)  # 0.1 до 0.8
+    
+    # Ограничиваем перебор
+    np.random.seed(42)
+    random_combinations = []
+    
+    for _ in range(1000):
+        t0 = np.random.choice(thresholds_range)
+        t1 = np.random.choice(thresholds_range)
+        t2 = np.random.choice(thresholds_range)
+        random_combinations.append({0: t0, 1: t1, 2: t2})
+
+    for thresholds in random_combinations:
+        y_pred = predict_with_thresholds(y_proba_test, thresholds)
+        f1_macro = f1_score(y_test, y_pred, average='macro')
+        
+        if f1_macro > best_f1_macro:
+            best_f1_macro = f1_macro
+            best_thresholds = thresholds.copy()
+    print(f"\nЛучшие пороги: {best_thresholds} с F1 macro: {best_f1_macro:.4f}")
+
+
+    predictor = ThresholdRFClassifier(best_thresholds)
+    predictor.fit(X_train, y_train)
+    y_pred_new = predictor.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred_new)
+    print("\nМатрица ошибок:")
+    print(cm)
+    print(classification_report(y_test, y_pred_new))
+    return best_thresholds
+
+def predict_with_thresholds(y_proba, thresholds):
     """
-    Применяет вес к букмекерским признакам
+    y_proba: вероятности [[P0, P1, P2], [P0, P1, P2], ...]
+    thresholds: {0: порог_гостей, 1: порог_ничья, 2: порог_хозяева}
+    
+    Возвращает: [класс1, класс2, класс3, ...]
     """
+    predictions = []
     
-    df_weighted = df.copy()
+    for prob in y_proba:  # Для каждого матча
+        candidates = []     # Список прошедших порог
+        
+        # Шаг 1: проверяем каждый класс
+        for class_idx in range(3):
+            if prob[class_idx] >= thresholds[class_idx]:
+                candidates.append((class_idx, prob[class_idx]))
+        
+        # Шаг 2: логика выбора
+        if candidates:
+            # Берём класс с максимальной вероятностью среди прошедших
+            best_class = max(candidates, key=lambda x: x[1])[0]
+            predictions.append(best_class)
+        else:
+            # Fallback: обычный argmax
+            predictions.append(np.argmax(prob))
     
-    bookie_features = ['psch', 'pscd', 'psca']
-    bookie_features = [f for f in bookie_features if f in feature_columns]
-    
-    # Умножаем букмекерские признаки на вес (< 1.0)
-    for col in bookie_features:
-        df_weighted[col] = df_weighted[col] * bookie_weight
-    
-    # Усиливаем рейтинговые признаки (опционально)
-    rating_features = ['glicko_home_rating', 'glicko_away_rating', 'rating_diff']
-    rating_features = [f for f in rating_features if f in feature_columns]
-    
-    for col in rating_features:
-        df_weighted[col] = df_weighted[col] * (2 - bookie_weight)  # ~1.7
-    
-    return df_weighted
+    return np.array(predictions)
 
 features_df = create_features(df)
 # Подготовка признаков
 print("\n🔄 Подготовка признаков...")
 data, feature_columns, target_column = prepare_features(features_df)
 
-data = weight_bookmaker_features(data, feature_columns, bookie_weight=1)
+# Оцениваем и ищем оптимальные пороги срабатывания
+print('\n🔬 Смотрим пороги срабатывания классификатора...')
+best_thresholds = find_tresholds(data, feature_columns, target_column, test_size=0.2)
+print(type(best_thresholds))
 
 
 # Подбор гиперпараметров (опционально)
@@ -606,9 +593,9 @@ data = weight_bookmaker_features(data, feature_columns, bookie_weight=1)
 # best_params = optimize_hyperparameters(data, feature_columns, target_column)
 
 # Кросс-валидация
-print("\n📊 Запуск K-Fold кросс-валидации...")
+# print("\n📊 Запуск K-Fold кросс-валидации...")
 # cv_results, importance_df, scaler_cv = train_with_stratified_kfold(
-#     data, feature_columns, target_column, n_splits=5
+#     data, feature_columns, target_column, n_splits=5, best_thresholds=best_thresholds
 # )
 
 # Визуализация
@@ -616,15 +603,15 @@ print("\n📊 Запуск K-Fold кросс-валидации...")
 # visualize_results(cv_results, importance_df, data, feature_columns, target_column)
 
 # Оценка на отложенной выборке
-print("\n🔬 Дополнительная оценка...")
-holdout_model, holdout_scaler, y_test, y_pred, y_proba = evaluate_on_holdout(
-    data, feature_columns, target_column, test_size=0.2
-)
+# print("\n🔬 Дополнительная оценка...")
+# holdout_model, holdout_scaler, y_test, y_pred, y_proba = evaluate_on_holdout(
+#     data, feature_columns, target_column, test_size=0.2, best_thresholds=best_thresholds
+# )
 
 # Финальная модель на всех данных
 print("\n🏁 Обучение финальной модели...")
 final_model, final_scaler = train_final_model(
-    data, feature_columns, target_column)
+    data, feature_columns, target_column, best_thresholds=best_thresholds)
 
 # Запаковываем в модель
 model_artifacts = {
@@ -632,11 +619,11 @@ model_artifacts = {
     'scaler': final_scaler,
     'feature_columns': feature_columns,
     'label_encoder': label_encoder,
-    'model_name': "random_forest",
+    'model_name': "random_forest_with_thresholds",
 }
 
 # # сохраняем артефакты с отметкой времени
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-filepath = rf"D:\Programming\Score_predictor\Trained models\random_forest_{timestamp}.pkl"
+filepath = rf"D:\Programming\Score_predictor\Trained models\random_forest_with_thresholds_{timestamp}.pkl"
 joblib.dump(model_artifacts, filepath)
 print(f"Model trained and saved {filepath}")
