@@ -70,6 +70,60 @@ class Bet(Base):
     bet_result: Mapped[Optional[MatchResult]]  # home/away/draw или NULL, если результат еще неизвестен
     bet_profit: Mapped[Optional[float]]  # выигрыш от ставки, может быть отрицательным в случае проигрыша
 
+# Таблица для записи ставок разными моделями и сравнения их результата
+class Predictions_all_models(Base):
+    __tablename__ = 'predictions_all_models'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey('matches.match_id'))
+    is_main_model: Mapped[bool]
+    model_name: Mapped[str]
+    predicted_result: Mapped[MatchResult]
+
+def add_prediction(
+    session: Session,
+    match_id: int,
+    main_model: bool,
+    model_name: str,
+    predicted_result: MatchResult,
+) -> Optional[Predictions_all_models]:
+    """
+    Добавляет новое предсказание от одной из моделей в бд.
+    
+    Args:
+        session: Сессия SQLAlchemy
+        match_id: ID матча, на который делается ставка
+        main_model: Признак, ставка делается основной моделью или нет
+        model_name: Название модели
+        predicted_result: Предсказание результата
+    Returns:
+        Объект Predictions_all_models или None в случае ошибки
+    """
+    try:
+        # Проверяем существование матча
+        match = get_match_by_id(session, match_id)
+        if not match:
+            logger.error(f"Матч с ID {match_id} не найден")
+            return None
+        
+        # Создаем новую ставку
+        prediction = Predictions_all_models(
+            match_id=match_id,
+            is_main_model=main_model,
+            model_name=model_name,
+            predicted_result=predicted_result
+        )
+        
+        session.add(prediction)
+        session.commit()
+        
+        logger.info(f"✅ Предсказание #{prediction.id} добавлена на матч ID {match_id}. Модель {model_name}")
+        
+        return prediction
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Ошибка при добавлении предсказания на матч ID {match_id}. Модель {model_name}: {e}")
+        return None
+
 def update_bet_result(
     session: Session,
     bet_id: int,

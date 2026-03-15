@@ -9,6 +9,7 @@ data_manager_path = os.path.join(root_dir, 'DataManager')
 sys.path.append(data_manager_path)
 from api_models import MatchesResponse
 import DataModels
+from DataModels import add_prediction
 from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime 
 import requests
@@ -23,7 +24,8 @@ DB_HOST = os.getenv('DB_HOST')
 
 db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
 Base_url = "https://api.sstats.net"
-model_path = current_dir + "/Trained modelsrandom_forest_20260304_201754.pkl"
+random_forest_model_name = current_dir + "/Trained modelsrandom_forest_20260304_201754.pkl"
+rf_thresholds_model_name = current_dir +  '/random_forest_with_thresholds_20260314_113048.pkl'
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 engine = create_engine(db_path)
@@ -54,10 +56,14 @@ def load_model(model_path):
 
 def update_prediction():
     today = datetime.now().strftime("%Y-%m-%d")
-    model_artifacts = load_model(model_path)
-    model = model_artifacts.get("model")
-    scaler = model_artifacts.get("scaler")
-    label_encoder = model_artifacts.get("label_encoder")
+    rf_model_artifacts = load_model(random_forest_model_name)
+    rf_model = rf_model_artifacts.get("model")
+    rf_scaler = rf_model_artifacts.get("scaler")
+    rf_label_encoder = rf_model_artifacts.get("label_encoder")
+    rf_thresholds_model_artifacts = load_model(rf_thresholds_model_name)
+    rft_model = rf_thresholds_model_artifacts.get("model")
+    rft_scaler = rf_thresholds_model_artifacts.get("scaler")
+    rft_label_encoder = rf_thresholds_model_artifacts.get("label_encoder")
     with Session() as session:
         today_matches = DataModels.get_matches_by_date(session, today)
         for match in today_matches:
@@ -86,12 +92,21 @@ def update_prediction():
             }
 
             features_df = pd.DataFrame([match_parameters_prepared])
-            features_scaled = scaler.transform(features_df)
-            prediction = model.predict(features_scaled)[0]
-            logger.info(f"Предсказание для матча id={match.match_id} ({match.start_match}): {prediction}")   
 
-            match.predicted_score = label_encoder.inverse_transform([prediction])[0] 
+            # Делаем основное предсказание
+            rf_features_scaled = rf_scaler.transform(features_df)
+            rf_prediction = rf_model.predict(rf_features_scaled)[0]
+            logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rf_prediction}")
+            rf_prediction =  rf_label_encoder.inverse_transform([rf_prediction])[0]
+            match.predicted_score =  rf_prediction
+            DataModels.add_prediction(session, match.match_id, True, "Trained modelsrandom_forest_20260304_201754.pkl", rf_prediction)
             
+            # Делаем прогноз моделями для сравнения
+            rft_features_scaled = rft_scaler.transform(features_df)
+            rft_prediction = rft_model.predict(rft_features_scaled)[0]
+            logger.info(f"Предсказание для матча ВТОРОЙ МОДЕЛЬЮ id={match.match_id} ({match.start_match}): {rft_prediction}")
+            rft_prediction =  rft_label_encoder.inverse_transform([rft_prediction])[0]
+            DataModels.add_prediction(session, match.match_id, False, "random_forest_with_thresholds_20260314_113048.pkll", rft_prediction)
             session.commit()
 
 # Будет использоваться, когда в модели появится форма команд
