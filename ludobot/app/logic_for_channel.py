@@ -8,9 +8,9 @@ print (data_manager_path)
 sys.path.append(data_manager_path)
 sys.path.append(parent_dir)
 
-from DataManager import get_matches_by_date, make_bet, update_bet_result_by_match_id
+from DataManager import get_matches_by_date, make_bet, update_bet_result_by_match_id, get_bet_results_by_date
 import DataModels
-from api_models import MatchesResponse
+from api_models import MatchesResponse, BetResultsDTO
 from datetime import date, timedelta
 from create_bot import bot
 import os
@@ -38,6 +38,17 @@ async def get_matches(match_date):
     matches_result = get_matches_by_date(match_date)
     return matches_result.matches
 
+# Отправляет еженедельный отчет о ставках
+async def weekly_send():
+    start_date = date.today() - timedelta(weeks=1)
+    end_date = date.today()
+    logger.log(f'Собираю недельный отчет за период  {start_date} - {end_date}')
+    bet_results = get_bet_results_by_date(start_date, end_date)
+    if bet_results:
+        message = f'📌Недельный отчет за период  {start_date} - {end_date}\nСделано ставок: {bet_results.matches_count}\nСтавок зашло: {bet_results.guess_matches}\nСтавок не зашло:{bet_results.not_guess_matches}\nСумма ставок:{bet_results.bet_amount}\nОбщий выигрыш:{bet_results.bet_profit}\nДоходность: {bet_results.bet_profit/bet_results.bet_amount}'
+        await bot.send_message(message)
+    else:
+        logger.log('Матчей для недельного отчета не найдено')
 
 async def make_bets(matches):
     if not matches:

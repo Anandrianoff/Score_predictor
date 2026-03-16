@@ -16,3 +16,10 @@ class MatchDTO():
 class MatchesResponse():
     date: datetime
     matches: List[MatchDTO]
+
+class BetResultsDTO():
+    matches_count: int
+    guess_matches: int
+    not_guess_matches: int
+    bet_amount: float
+    bet_profit: float

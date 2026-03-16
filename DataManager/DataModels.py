@@ -150,7 +150,7 @@ def update_bet_result(
         
         # Вычисляем прибыль от ставки
         if bet.bet_type == match_result:
-            bet.bet_profit = bet.bet_amount * (bet.bet_odds)  # Выигрыш минус ставка
+            bet.bet_profit = bet.bet_amount * (bet.bet_odds) - bet.bet_amount # Выигрыш минус ставка
         else:
             bet.bet_profit = -bet.bet_amount  # Проигрыш равен сумме ставки
         
@@ -413,7 +413,7 @@ def get_team_by_api_id(session: Session, team_api_id: str) -> Optional[Team]:
         logger.error(f"Ошибка при получении команды по API ID '{team_api_id}': {e}")
         return None
     
-def get_matches_by_date(session: Session, date: datetime) -> list[Match]:
+def get_matches_by_date(session: Session, date: datetime, end_date: datetime) -> list[Match]:
     """
      Получает матчи за указанный день.
      
@@ -430,7 +430,8 @@ def get_matches_by_date(session: Session, date: datetime) -> list[Match]:
             # Если пришла строка, преобразуем в datetime
             date = datetime.strptime(date, "%Y-%m-%d")
             
-        end_date = date + timedelta(days=1)
+        if not end_date:
+            end_date = date + timedelta(days=1)
         matches = session.query(Match).filter(
             Match.start_match >= date,
             Match.start_match < end_date

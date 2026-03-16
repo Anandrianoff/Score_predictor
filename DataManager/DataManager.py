@@ -2,7 +2,7 @@ import sys
 import time
 from sqlalchemy import create_engine, text
 import api_models
-from api_models import MatchesResponse
+from api_models import MatchesResponse, BetResultsDTO
 import DataModels
 from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime, timedelta 
@@ -166,6 +166,32 @@ def get_matches_by_date(date):
                 print(f"filled_match: {filled_match.__dict__}")
                 matches_response.matches.append(filled_match)
     return matches_response
+
+def get_bet_results_by_date(start_date = datetime.now(), end_date = datetime.now() + timedelta(days=1)) -> BetResultsDTO:
+    with Session() as session:
+        matches = DataModels.get_matches_by_date(session, start_date, end_date)
+        if matches:
+            bet_results = BetResultsDTO()
+            bet_results.bet_amount = 0
+            bet_results.bet_profit = 0
+            bet_results.matches_count = 0
+            bet_results.guess_matches = 0
+            bet_results.not_guess_matches = 0
+            for match in matches:
+                bet_results.matches_count += 1
+                bets = DataModels.get_bets_by_match_id(session, match.match_id)
+                if bets:
+                    for bet in bets:
+                        bet_results.bet_amount += bet.bet_amount
+                        bet_results.bet_profit += bet.bet_profit
+                        if bet.bet_type == bet.bet_result:
+                            bet_results.guess_matches += 1
+                        else:
+                            bet_results.not_guess_matches += 1
+            return bet_results
+    return
+
+
 
 
 # Заполнение базы данных командами и будущими матчами            

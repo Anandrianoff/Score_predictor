@@ -94,19 +94,19 @@ def update_prediction():
             features_df = pd.DataFrame([match_parameters_prepared])
 
             # Делаем основное предсказание
-            rf_features_scaled = rf_scaler.transform(features_df)
-            rf_prediction = rf_model.predict(rf_features_scaled)[0]
-            logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rf_prediction}")
-            rf_prediction =  rf_label_encoder.inverse_transform([rf_prediction])[0]
-            match.predicted_score =  rf_prediction
-            DataModels.add_prediction(session, match.match_id, True, "Trained modelsrandom_forest_20260304_201754.pkl", rf_prediction)
-            
-            # Делаем прогноз моделями для сравнения
             rft_features_scaled = rft_scaler.transform(features_df)
             rft_prediction = rft_model.predict(rft_features_scaled)[0]
-            logger.info(f"Предсказание для матча ВТОРОЙ МОДЕЛЬЮ id={match.match_id} ({match.start_match}): {rft_prediction}")
+            logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rft_prediction}")
             rft_prediction =  rft_label_encoder.inverse_transform([rft_prediction])[0]
-            DataModels.add_prediction(session, match.match_id, False, "random_forest_with_thresholds_20260314_113048.pkll", rft_prediction)
+            DataModels.add_prediction(session, match.match_id, True, "random_forest_with_thresholds_20260314_113048.pkll", rft_prediction)
+            match.predicted_score =  rft_prediction
+
+            # Делаем прогноз моделями для сравнения
+            rf_features_scaled = rf_scaler.transform(features_df)
+            rf_prediction = rf_model.predict(rf_features_scaled)[0]
+            logger.info(f"Предсказание для матча ВТОРОЙ МОДЕЛЬЮ id={match.match_id} ({match.start_match}): {rf_prediction}")
+            rf_prediction =  rf_label_encoder.inverse_transform([rf_prediction])[0]
+            DataModels.add_prediction(session, match.match_id, False, "Trained modelsrandom_forest_20260304_201754.pkl", rf_prediction)
             session.commit()
 
 # Будет использоваться, когда в модели появится форма команд

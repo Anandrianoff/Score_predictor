@@ -15,7 +15,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from create_bot import dp, bot
 from handlers import router
-from logic_for_channel import daily_send
+from logic_for_channel import daily_send, weekly_send
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bacground_worker import update_games_info
 from background_score_predictor import update_prediction
@@ -28,6 +28,7 @@ async def main():
     scheduler.add_job(daily_send, 'cron', hour = 11, minute = 30, jitter=20)
     scheduler.add_job(update_games_info, 'cron', hour = 11, minute = 25)
     scheduler.add_job(update_prediction, 'cron', hour = 11, minute = 27)
+    scheduler.add_job(weekly_send, trigger='cron', day_of_week='tue', hour='11', minute='30')
     scheduler.start()
 
     dp.include_router(router)
