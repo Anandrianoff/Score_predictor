@@ -167,7 +167,12 @@ def get_matches_by_date(date):
                 matches_response.matches.append(filled_match)
     return matches_response
 
-def get_bet_results_by_date(start_date = datetime.now(), end_date = datetime.now() + timedelta(days=1)) -> BetResultsDTO:
+def get_bet_results_by_date(start_date = None, end_date = None) -> BetResultsDTO:
+    if start_date is None:
+        start_date = datetime.now()
+    if end_date is None:
+        end_date = datetime.now() + timedelta(days=1)
+
     with Session() as session:
         matches = DataModels.get_matches_by_date(session, start_date, end_date)
         if matches:
@@ -178,10 +183,11 @@ def get_bet_results_by_date(start_date = datetime.now(), end_date = datetime.now
             bet_results.guess_matches = 0
             bet_results.not_guess_matches = 0
             for match in matches:
-                bet_results.matches_count += 1
                 bets = DataModels.get_bets_by_match_id(session, match.match_id)
                 if bets:
                     for bet in bets:
+                        bet_results.matches_count += 1
+                        print(f'{match.match_id}, {bet.bet_type}, {bet.bet_result}')
                         bet_results.bet_amount += bet.bet_amount
                         bet_results.bet_profit += bet.bet_profit
                         if bet.bet_type == bet.bet_result:
@@ -190,7 +196,6 @@ def get_bet_results_by_date(start_date = datetime.now(), end_date = datetime.now
                             bet_results.not_guess_matches += 1
             return bet_results
     return
-
 
 
 

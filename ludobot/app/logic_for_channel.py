@@ -42,13 +42,17 @@ async def get_matches(match_date):
 async def weekly_send():
     start_date = date.today() - timedelta(weeks=1)
     end_date = date.today()
-    logger.log(f'Собираю недельный отчет за период  {start_date} - {end_date}')
+    logger.info(f'Собираю недельный отчет за период с {start_date} по {end_date}')
     bet_results = get_bet_results_by_date(start_date, end_date)
     if bet_results:
-        message = f'📌Недельный отчет за период  {start_date} - {end_date}\nСделано ставок: {bet_results.matches_count}\nСтавок зашло: {bet_results.guess_matches}\nСтавок не зашло:{bet_results.not_guess_matches}\nСумма ставок:{bet_results.bet_amount}\nОбщий выигрыш:{bet_results.bet_profit}\nДоходность: {bet_results.bet_profit/bet_results.bet_amount}'
-        await bot.send_message(message)
+        if bet_results.bet_amount != 0:
+            profitability = round((bet_results.bet_profit / bet_results.bet_amount) * 100, 1)
+        else:
+            profitability = 0
+        message = f'📌 Недельный отчет за период {start_date} - {end_date}\n- Сделано ставок: {bet_results.matches_count}\n- Ставок зашло: {bet_results.guess_matches}\n- Ставок не зашло: {bet_results.not_guess_matches}\n- Сумма ставок: {bet_results.bet_amount}\n- Общий выигрыш: {bet_results.bet_profit}\n- Доходность: {profitability}%'
+        await bot.send_message(CHANNEL_ID, message)
     else:
-        logger.log('Матчей для недельного отчета не найдено')
+        logger.info('Матчей для недельного отчета не найдено')
 
 async def make_bets(matches):
     if not matches:

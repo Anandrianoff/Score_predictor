@@ -413,13 +413,14 @@ def get_team_by_api_id(session: Session, team_api_id: str) -> Optional[Team]:
         logger.error(f"Ошибка при получении команды по API ID '{team_api_id}': {e}")
         return None
     
-def get_matches_by_date(session: Session, date: datetime, end_date: datetime) -> list[Match]:
+def get_matches_by_date(session: Session, date: datetime, end_date: datetime = None) -> list[Match]:
     """
      Получает матчи за указанный день.
      
      Args:
         session: Сессия SQLAlchemy
-        date: Дата для поиска матчей
+        date: Начальная дата для поиска матчей
+        end_date: Конечная дата для поиска матчей
         
     Returns:
         Список объектов Match за указанный день
@@ -430,20 +431,24 @@ def get_matches_by_date(session: Session, date: datetime, end_date: datetime) ->
             # Если пришла строка, преобразуем в datetime
             date = datetime.strptime(date, "%Y-%m-%d")
             
-        if not end_date:
+        if end_date:
+            if isinstance(end_date, str):
+                end_date = datetime.strptime(end_date, "%Y-%m-%d")
+        else:
+            # Если end_date не указан, ищем за один день
             end_date = date + timedelta(days=1)
+
         matches = session.query(Match).filter(
             Match.start_match >= date,
             Match.start_match < end_date
         ).order_by(Match.start_match).all()
             
         logger.info(f"Найдено {len(matches)} матчей с {date} по {end_date}")
-        print(matches)
         return matches
     except Exception as e:
         logger.error(f"Ошибка при получении матчей за период: {e}")
         return [] 
-    
+
 def get_team_by_id(session: Session, team_id: int) -> Optional[Team]:
     """
     Получает команду по её ID.
