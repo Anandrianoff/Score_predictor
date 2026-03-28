@@ -154,7 +154,11 @@ def get_matches_by_date(date):
                 filled_match.home_team_name_rus = DataModels.get_team_by_id(session, match.home_team).team_name_rus
                 filled_match.away_team_id = match.away_team
                 filled_match.away_team_name_rus = DataModels.get_team_by_id(session, match.away_team).team_name_rus
+                filled_match.start_match = match.start_match
+                filled_match.home_goals = match.home_goals
+                filled_match.away_goals = match.away_goals
                 filled_match.winner_predict = match.predicted_score
+                filled_match.odd = None
                 filled_match.winner_fact = match.winner
                 print(match.predicted_score)
                 if match.predicted_score == DataModels.MatchResult.home:

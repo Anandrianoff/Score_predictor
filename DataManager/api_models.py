@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from DataModels import MatchResult
 
@@ -8,8 +8,11 @@ class MatchDTO():
     home_team_name_rus: str
     away_team_id: int
     away_team_name_rus: str
-    winner_predict: str
-    odd: float
+    start_match: Optional[datetime]
+    home_goals: Optional[int]
+    away_goals: Optional[int]
+    winner_predict: Optional[MatchResult]
+    odd: Optional[float]
     winner_fact: MatchResult | None = None
 
 

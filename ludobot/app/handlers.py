@@ -1,38 +1,45 @@
+import logging
+import os
+import sys
+from pathlib import Path
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
-import logging
-from logic_for_channel import daily_send
-import os
-import sys
 from dotenv import load_dotenv
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-root = os.path.dirname(parent_dir)
-utils_dir = os.path.join(parent_dir, 'Utils')
-sys.path.append(utils_dir)
+
+_root = Path(__file__).resolve().parents[2]
+_src = _root / "src"
+if str(_src) not in sys.path:
+    sys.path.insert(0, str(_src))
+
+from score_predictor.bootstrap import ensure_project_import_paths
+
+ensure_project_import_paths()
 
 from background_score_predictor import update_prediction
+from logic_for_channel import daily_send
 
 load_dotenv()
-ADMIN = os.getenv('ADMIN')
-
+ADMIN = os.getenv("ADMIN")
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(Command('send_scores'))
+
+@router.message(Command("send_scores"))
 async def send_scores(message: Message):
     if message.from_user.id == int(ADMIN):
         await daily_send()
-        await message.answer('Успешно')
+        await message.answer("Успешно")
     else:
-        await message.answer('С новым годом, пошёл нафиг')
+        await message.answer("С новым годом, пошёл нафиг")
 
-@router.message(Command('update_predictions'))
-async def send_scores(message: Message):
+
+@router.message(Command("update_prediction"))
+async def send_scores_update_prediction(message: Message):
     if message.from_user.id == int(ADMIN):
         update_prediction()
-        await message.answer('Успешно')
+        await message.answer("Успешно")
     else:
-        await message.answer('С новым годом, пошёл нафиг')
+        await message.answer("С новым годом, пошёл нафиг")

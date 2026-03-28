@@ -14,4 +14,6 @@ COPY ludobot/ ./ludobot
 
 COPY Utils/ ./Utils
 
+COPY src/ ./src
+
 CMD ["python", "ludobot/bot.py"]

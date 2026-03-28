@@ -3,34 +3,52 @@ import sys
 import joblib
 import numpy as np
 from sqlalchemy import create_engine, text
+from pathlib import Path
+
+from score_predictor.bootstrap import ensure_project_import_paths
+from score_predictor.config import get_settings
+
+ensure_project_import_paths()
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-data_manager_path = os.path.join(root_dir, 'DataManager')
-sys.path.append(data_manager_path)
-from api_models import MatchesResponse
-import DataModels
-from DataModels import add_prediction
+
+from api_models import MatchesResponse  # noqa: F401  # type: ignore[reportMissingImports]
+import DataModels  # type: ignore[reportMissingImports]
+from DataModels import add_prediction  # noqa: F401  # type: ignore[reportMissingImports]
 from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime 
 import requests
 from datetime import timedelta
 import logging
 import pandas as pd
-from dotenv import load_dotenv
 
-load_dotenv()
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_HOST = os.getenv('DB_HOST')
+import Utils.utils as utils
 
-db_path = f'postgresql+psycopg2://postgres:{DB_PASSWORD}@{DB_HOST}:5432/DbScore'
-Base_url = "https://api.sstats.net"
-random_forest_model_name = current_dir + "/Trained modelsrandom_forest_20260304_201754.pkl"
-rf_thresholds_model_name = current_dir +  '/random_forest_with_thresholds_20260314_113048.pkl'
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-engine = create_engine(db_path)
+settings = get_settings()
+
+engine = create_engine(settings.sqlalchemy_url)
 Session = sessionmaker(engine)
-home_advantage = 10  # Можно экспериментировать с этим значением
+
+Base_url = settings.sstats_base_url
+
+random_forest_model_name = str(settings.glicko_rf_model_path)
+rf_thresholds_model_name = str(settings.rf_thresholds_model_path)
+
+_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
+
+# Ensure timestamps are present even if another module already called basicConfig().
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT, datefmt=_DATE_FORMAT)
+else:
+    for h in root_logger.handlers:
+        h.setFormatter(formatter)
+    root_logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+home_advantage = settings.glicko_home_advantage  # Можно экспериментировать с этим значением
 
 def load_model(model_path):
     """Load trained model and its artifacts."""
@@ -45,17 +63,21 @@ def load_model(model_path):
     if model is None:
         raise ValueError("Model not found in artifacts!")
     
-    print("✓ Model loaded successfully")
-    print(f"✓ Model type: {type(model).__name__}")
-    print(f"✓ Model name: {model_name}")
-    print(f"✓ Number of features: {len(feature_columns) if feature_columns else 'not specified'}")
-    print(f"✓ Scaler: {'loaded' if scaler else 'not used'}")
-    print(f"✓ Label encoder: {'loaded' if label_encoder else 'not used'}")
+    # Log instead of printing so timestamp/format is consistent.
+    logger.info("OK: Model loaded successfully")
+    logger.info("OK: Model type: %s", type(model).__name__)
+    logger.info("OK: Model name: %s", model_name)
+    logger.info(
+        "OK: Number of features: %s",
+        len(feature_columns) if feature_columns else "not specified",
+    )
+    logger.info("OK: Scaler: %s", "loaded" if scaler else "not used")
+    logger.info("OK: Label encoder: %s", "loaded" if label_encoder else "not used")
     
     return model_artifacts
 
-def update_prediction():
-    today = datetime.now().strftime("%Y-%m-%d")
+def update_prediction(today=None):
+    today = today or (datetime.now().strftime("%Y-%m-%d"))
     rf_model_artifacts = load_model(random_forest_model_name)
     rf_model = rf_model_artifacts.get("model")
     rf_scaler = rf_model_artifacts.get("scaler")
@@ -98,7 +120,13 @@ def update_prediction():
             rft_prediction = rft_model.predict(rft_features_scaled)[0]
             logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rft_prediction}")
             rft_prediction =  rft_label_encoder.inverse_transform([rft_prediction])[0]
-            DataModels.add_prediction(session, match.match_id, True, "random_forest_with_thresholds_20260314_113048.pkll", rft_prediction)
+            DataModels.add_prediction(
+                session,
+                match.match_id,
+                True,
+                Path(rf_thresholds_model_name).name,
+                rft_prediction,
+            )
             match.predicted_score =  rft_prediction
 
             # Делаем прогноз моделями для сравнения
@@ -106,7 +134,13 @@ def update_prediction():
             rf_prediction = rf_model.predict(rf_features_scaled)[0]
             logger.info(f"Предсказание для матча ВТОРОЙ МОДЕЛЬЮ id={match.match_id} ({match.start_match}): {rf_prediction}")
             rf_prediction =  rf_label_encoder.inverse_transform([rf_prediction])[0]
-            DataModels.add_prediction(session, match.match_id, False, "Trained modelsrandom_forest_20260304_201754.pkl", rf_prediction)
+            DataModels.add_prediction(
+                session,
+                match.match_id,
+                False,
+                Path(random_forest_model_name).name,
+                rf_prediction,
+            )
             session.commit()
 
 # Будет использоваться, когда в модели появится форма команд
@@ -115,6 +149,7 @@ def update_prediction_with_form():
     # today = datetime.now().strftime("%Y-%m-%d")
     tomorrow = (datetime.now() - timedelta(days=0)).strftime("%Y-%m-%d")
     last_year = (datetime.now() - timedelta(days=185)).strftime("%Y-%m-%d")
+    model_path = str(settings.form_model_path)
     model_artifacts = load_model(model_path)
     model = model_artifacts.get("model")
     scaler = model_artifacts.get("scaler")
