@@ -30,6 +30,5 @@ COPY ["API core/", "./API core/"]
 # Joblib artifacts + CSV used by `background_score_predictor` / API (paths from `.env` / defaults).
 # Build context must contain these dirs (can be empty if you mount models at runtime instead).
 COPY ["Trained models/", "./Trained models/"]
-COPY Datasets/ ./Datasets/
 
 CMD ["python", "ludobot/bot.py"]
