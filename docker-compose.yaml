@@ -9,6 +9,9 @@ services:
       TOKEN: ${TOKEN}
       CHANNEL_ID: ${CHANNEL_ID}
       ADMIN: ${ADMIN}
+      TOKEN_VK: ${TOKEN_VK}
+      VK_GROUP_ID: ${VK_GROUP_ID}
+      VK_ADMIN_ID: ${VK_ADMIN_ID}
       TZ: Europe/Samara
     volumes:
       - app-data:/app/data
