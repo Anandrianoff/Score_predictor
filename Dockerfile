@@ -1,33 +1,29 @@
 FROM python:3.13-slim
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_DEFAULT_TIMEOUT=120 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+# ENV DEBIAN_FRONTEND=noninteractive \
+#     PYTHONUNBUFFERED=1 \
+#     PYTHONDONTWRITEBYTECODE=1 \
+#     PIP_DEFAULT_TIMEOUT=120 \
+#     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # If PyPI is slow or blocked, build with e.g.:
 #   docker build --build-arg PIP_INDEX_URL=https://pypi.org/simple .
 # Or a mirror: https://mirrors.aliyun.com/pypi/simple/ (also add that host to --trusted-host).
-ARG PIP_INDEX_URL=https://pypi.org/simple
-ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+# ARG PIP_INDEX_URL=https://pypi.org/simple
+# ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 WORKDIR /Score_predictor
 
-RUN apt-get -o Acquire::Retries=5 update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        tzdata \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential libssl-dev && rm -rf /var/lib/apt/lists/*
+# RUN apt-get -o Acquire::Retries=5 update \
+#     && apt-get install -y --no-install-recommends \
+#         ca-certificates \
+#         tzdata \
+#     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir \
-        --index-url "${PIP_INDEX_URL}" \
-        --trusted-host pypi.org \
-        --trusted-host files.pythonhosted.org \
-        -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY DataManager/ ./DataManager/
 COPY ludobot/ ./ludobot/

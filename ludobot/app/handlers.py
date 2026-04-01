@@ -30,16 +30,25 @@ router = Router()
 @router.message(Command("send_scores"))
 async def send_scores(message: Message):
     if message.from_user.id == int(ADMIN):
-        await daily_send()
-        await message.answer("Успешно")
+        try:
+            await daily_send()
+            await message.answer("Успешно")
+        except Exception as e:
+            logger.error(f"Error in daily_send: {e}")
+            await message.answer(f"Произошла ошибка при отправке результатов.\nОшибка: {e}")
     else:
         await message.answer("С новым годом, пошёл нафиг")
 
 
 @router.message(Command("update_prediction"))
 async def send_scores_update_prediction(message: Message):
+    logger.info(f"Received update_prediction command from user {message.from_user.id}")
     if message.from_user.id == int(ADMIN):
-        update_prediction()
-        await message.answer("Успешно")
+        try:
+            update_prediction()
+            await message.answer("Успешно")
+        except Exception as e:
+            logger.error(f"Error in update_prediction: {e}")
+            await message.answer(f"Произошла ошибка при обновлении предсказаний.\nОшибка: {e}")
     else:
         await message.answer("С новым годом, пошёл нафиг")

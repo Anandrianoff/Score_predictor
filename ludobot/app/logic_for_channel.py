@@ -1,3 +1,4 @@
+import random
 import asyncio
 import logging
 import os
@@ -6,6 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+import requests
 
 _root = Path(__file__).resolve().parents[2]
 _src = _root / "src"
@@ -32,7 +34,10 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 CHANNEL_ID = os.getenv("CHANNEL_ID")
+VK_TOKEN = os.getenv("TOKEN_VK")
+GROUP_ID = os.getenv("VK_GROUP_ID")
 bet_size = 1000
+VK_ADMIN_ID = os.getenv("VK_ADMIN_ID")
 
 
 def _as_date(d):
@@ -57,6 +62,33 @@ def _format_result(home_team_name, away_team_name, result):
         return "ничья"
     return away_team_name
 
+async def send_start_message():
+    logger.info("Sending start message to VK")
+    url = "https://api.vk.com/method/messages.send"
+    message = "Стартую бота для вк"
+    params = {
+        "user_id": VK_ADMIN_ID,
+        "random_id": random.randint(1, 2_147_483_647),
+        "message": message,
+        "access_token": VK_TOKEN,
+        "v": "5.199",
+    }
+    response = requests.get(url, params=params, timeout=20)
+    logger.info(f"VK API response for start message: {response.status_code} {response.text}")
+    return response.json()
+
+async def send_message_to_vk(message: str):
+    url = "https://api.vk.com/method/wall.post"
+    params = {
+        "owner_id": GROUP_ID,   # минус обязателен для группы
+        "message": message,
+        "from_group": 1,          # пост от имени группы, а не пользователя
+        "access_token": VK_TOKEN,
+        "v": "5.199",
+    }
+    logger.info(f"Sending message to VK, to URL: {url}")
+    response = requests.get(url, params=params)
+    logger.info(f"VK API response: {response.status_code} {response.text}")
 
 async def make_bets_for_day(bets_date=None) -> None:
     bets_date = bets_date or date.today()
@@ -68,7 +100,7 @@ async def update_yesterday_bet_results(day_to_update=None) -> None:
     await asyncio.to_thread(update_bet_results_for_date, yesterday)
 
 
-async def form_and_send_daily_message(send_date=None) -> None:
+async def form_daily_message(send_date=None) -> str:
     d = _as_date(send_date)
     yesterday = d - timedelta(days=1)
     today_matches = await get_matches(d)
@@ -121,14 +153,24 @@ async def form_and_send_daily_message(send_date=None) -> None:
         else:
             message += f"❌ ИТОГ ДНЯ: убыток {-total_profit} (ROI {total_profit / total_spent:.2%})"
 
-    message = message.strip()
-    if message:
-        await bot.send_message(CHANNEL_ID, message)
+    return message
 
 
 async def daily_send(send_date=None) -> None:
     # Side-effects (make bets / update yesterday) are scheduled in `ludobot/bot.py`.
-    await form_and_send_daily_message(send_date=send_date or date.today())
+    message = await form_daily_message(send_date=send_date or date.today())
+    message = message.strip()
+    if message:
+        try:
+            logger.info(f"Sending daily message to Telegram: {message}")
+            await bot.send_message(CHANNEL_ID, message)
+        except Exception as e:
+            logger.error(f"Failed to send message to Telegram: {e}")
+        try:
+            await send_message_to_vk(message)
+        except Exception as e:
+            logger.error(f"Failed to send message to VK: {e}")
+        
 
 
 async def get_matches(match_date):
@@ -146,7 +188,15 @@ async def weekly_send(week_date=None):
     bets = get_bet_results_by_date(start, today)
     message = await build_weekly_stats(bets)
     if message:
-        await bot.send_message(CHANNEL_ID, message)
+        try:
+            logger.info(f"Sending weekly message to Telegram: {message}")
+            await bot.send_message(CHANNEL_ID, message)
+        except Exception as e:
+            logger.error(f"Failed to send message to Telegram: {e}")
+        try:            
+            await send_message_to_vk(message)
+        except Exception as e:
+            logger.error(f"Failed to send message to VK: {e}")
 
 
 async def build_weekly_stats(bets_result: BetResultsDTO):

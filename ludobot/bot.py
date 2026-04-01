@@ -25,6 +25,7 @@ from logic_for_channel import (
     make_bets_for_day,
     update_yesterday_bet_results,
     weekly_send,
+    send_start_message,
 )
 import ThresholdRFClassifier  # noqa: F401 — ensures ML Core import path works at startup
 
@@ -32,6 +33,7 @@ scheduler = AsyncIOScheduler()
 
 
 async def main():
+    await send_start_message()
     scheduler.add_job(update_games_info, "cron", hour=11, minute=22)
     scheduler.add_job(update_prediction, "cron", hour=11, minute=27)
     scheduler.add_job(make_bets_for_day, "cron", hour=11, minute=29)
@@ -45,12 +47,13 @@ async def main():
 
 
 if __name__ == "__main__":
-    handler = RotatingFileHandler("ludobot.log", maxBytes=1_000_000, backupCount=6)
+    _log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    file_handler = RotatingFileHandler("ludobot.log", maxBytes=1_000_000, backupCount=6)
 
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[handler],
+        handlers=file_handler,
+        format=_log_fmt,
     )
     logger = logging.getLogger(__name__)
 
