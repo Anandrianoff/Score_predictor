@@ -30,7 +30,7 @@ engine = create_engine(db_path)
 Session = sessionmaker(engine)
 
 def update_games_info(date_from=None, date_to=None):
-    date_from = date_from or (datetime.now().strftime("%Y-%m-%d"))
+    date_from = date_from or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     date_to = date_to or (datetime.strptime(date_from, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
     request_url = Base_url + f"/games/list?leagueid=235&from={date_from}&to={date_to}"
     response = requests.get(request_url)
