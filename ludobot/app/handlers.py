@@ -47,7 +47,7 @@ async def send_scores(message: Message):
         await message.answer("С новым годом, пошёл нафиг")
 
 
-@router.message(Command("update_prediction"))
+@router.message(Command("update_predictions"))
 async def send_scores_update_prediction(message: Message):
     logger.info(f"Received update_prediction command from user {message.from_user.id}")
     if message.from_user.id == int(ADMIN):
