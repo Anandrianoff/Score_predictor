@@ -73,3 +73,17 @@ async def send_scores_update_prediction(message: Message):
             await message.answer(f"Произошла ошибка при update_all.\nОшибка: {e}")
     else:
         await message.answer("С новым годом, пошёл нафиг")
+
+@router.message(Command("send_weekly"))
+async def send_weekly_report(message: Message):
+    logger.info(f"Received send_weekly command from user {message.from_user.id}")
+    if message.from_user.id != int(ADMIN):
+        await message.answer("С новым годом, пошёл нафиг")
+        return
+    try:
+        await weekly_send()
+        await message.answer("Успешно")
+    except Exception as e:
+        logger.error(f"Error in weekly_send: {e}")
+        await message.answer(f"Произошла ошибка при отправке еженедельного отчёта.\nОшибка: {e}")
+    
