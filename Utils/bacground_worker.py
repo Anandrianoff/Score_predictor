@@ -46,7 +46,7 @@ def update_games_info(date_from=None, date_to=None):
                 match_to_update.start_match = start_match
                 match_to_update.home_goals = match_response.get('homeFTResult')
                 match_to_update.away_goals = match_response.get('awayFTResult')
-                if (match_response.get('odds') & match_response.get('status') == 2): # Статус 2 значит, что матч не начался
+                if ((match_response.get('odds') != None) & (match_response.get('status') == 2)): # Статус 2 значит, что матч не начался
                     for odd in match_response['odds']:
                         if odd['marketId'] == 1:  # Рынок 1 - это обычно исход матча
                             if (odd.get('odds')):
