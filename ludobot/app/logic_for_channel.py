@@ -1,101 +1,214 @@
-import sys
-import os
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-root_dir = os.path.dirname(parent_dir)
-data_manager_path = os.path.join(root_dir, 'DataManager')
-print (data_manager_path)
-sys.path.append(data_manager_path)
-sys.path.append(parent_dir)
-
-from DataManager import get_matches_by_date, make_bet, update_bet_result_by_match_id, get_bet_results_by_date
-import DataModels
-from api_models import MatchesResponse, BetResultsDTO
-from datetime import date, timedelta
-from create_bot import bot
-import os
-from dotenv import load_dotenv
+import random
+import asyncio
 import logging
+import os
+import sys
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from dotenv import load_dotenv
+import requests
+
+_root = Path(__file__).resolve().parents[2]
+_src = _root / "src"
+if str(_src) not in sys.path:
+    sys.path.insert(0, str(_src))
+
+from score_predictor.bootstrap import ensure_project_import_paths
+
+ensure_project_import_paths()
+
+from api_models import BetResultsDTO, MatchesResponse  # type: ignore[reportMissingImports]
+from create_bot import bot  # type: ignore[reportMissingImports]
+from DataManager import (  # type: ignore[reportMissingImports]
+    get_matches_by_date,
+    get_bet_results_by_date,
+)
+import DataModels  # type: ignore[reportMissingImports]
+from background_daily_bets_worker import (  # type: ignore[reportMissingImports]
+    make_bets_for_date,
+    update_bet_results_for_date,
+)
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-CHANNEL_ID = os.getenv('CHANNEL_ID') # Замените на ID вашего канала
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+VK_TOKEN = os.getenv("TOKEN_VK")
+GROUP_ID = os.getenv("VK_GROUP_ID")
 bet_size = 1000
+VK_ADMIN_ID = os.getenv("VK_ADMIN_ID")
 
-async def daily_send():
-    today_matches = await get_matches(date.today())
-    today_matches_message = await make_bets(today_matches)
-    yesterday_matches = await get_matches(date.today() - timedelta(days=1))
-    yesterday_matches_message = await build_yesterday_matches_list(yesterday_matches)
-    message =  today_matches_message + yesterday_matches_message
+
+def _as_date(d):
+    """Accept str 'YYYY-MM-DD', datetime.date, or datetime.datetime."""
+    if d is None:
+        return date.today()
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    if isinstance(d, str):
+        return datetime.strptime(d, "%Y-%m-%d").date()
+    return date.today()
+
+
+def _format_result(home_team_name, away_team_name, result):
+    if result is None:
+        return "None"
+    if result == DataModels.MatchResult.home:
+        return home_team_name
+    if result == DataModels.MatchResult.draw:
+        return "ничья"
+    return away_team_name
+
+async def send_start_message():
+    logger.info("Sending start message to VK")
+    url = "https://api.vk.com/method/messages.send"
+    message = "Стартую бота для вк"
+    params = {
+        "user_id": VK_ADMIN_ID,
+        "random_id": random.randint(1, 2_147_483_647),
+        "message": message,
+        "access_token": VK_TOKEN,
+        "v": "5.199",
+    }
+    response = requests.get(url, params=params, timeout=20)
+    logger.info(f"VK API response for start message: {response.status_code} {response.text}")
+    return response.json()
+
+async def send_message_to_vk(message: str):
+    url = "https://api.vk.com/method/wall.post"
+    params = {
+        "owner_id": GROUP_ID,   # минус обязателен для группы
+        "message": message,
+        "from_group": 1,          # пост от имени группы, а не пользователя
+        "access_token": VK_TOKEN,
+        "v": "5.199",
+    }
+    logger.info(f"Sending message to VK, to URL: {url}")
+    response = requests.get(url, params=params)
+    logger.info(f"VK API response: {response.status_code} {response.text}")
+
+async def make_bets_for_day(bets_date=None) -> None:
+    bets_date = bets_date or date.today()
+    await asyncio.to_thread(make_bets_for_date, bets_date, bet_size)
+
+
+async def update_yesterday_bet_results(day_to_update=None) -> None:
+    yesterday = day_to_update or date.today() - timedelta(days=1)
+    await asyncio.to_thread(update_bet_results_for_date, yesterday)
+
+
+async def form_daily_message(send_date=None) -> str:
+    d = _as_date(send_date)
+    yesterday = d - timedelta(days=1)
+    today_matches = await get_matches(d)
+    yesterday_matches = await get_matches(yesterday)
+
+    message = ""
+    if len(today_matches) > 0:
+        message = f"📅 Список матчей на сегодня:\n"
+
+        matches_count = 1
+        for m in today_matches:
+            # MatchesResponse items are DataManager.MatchDTO.
+            if m.start_match is None:
+                continue
+            message += f"{matches_count}. {m.home_team_name_rus} — {m.away_team_name_rus} ({m.start_match:%H:%M})\n"
+            message += f"Предполагаемый победитель: {_format_result(m.home_team_name_rus, m.away_team_name_rus, m.winner_predict)}\n"
+            if m.odd is not None:
+                message += f"Ставка {bet_size} с коэффициентом ({m.odd:.2f})\n\n"
+            else:
+                message += f"Ставка {bet_size} на {_format_result(m.home_team_name_rus, m.away_team_name_rus, m.winner_predict)}\n\n"
+            matches_count += 1
+
+    if len(yesterday_matches) > 0:
+        message += f"🔙 Итоги вчерашних матчей:\n"
+    
+        matches_count = 1
+        total_profit = 0
+        total_spent = 0
+        for m in yesterday_matches:
+            if m.start_match is None:
+                continue
+            message += f"{matches_count}. {m.home_team_name_rus} — {m.away_team_name_rus}\n"
+            if m.home_goals is not None and m.away_goals is not None:
+                message += f"Счёт: {m.home_goals}:{m.away_goals}\n"
+            profit = 0
+            if m.winner_predict == m.winner_fact:
+                message += f"Ставка зашла\n"
+                # ЭТОТ ХАРДКОД НАДО ОБЯЗАТЕЛЬНО ПЕРЕДЕЛАТЬ
+                if m.odd is not None:
+                    profit = m.odd * bet_size
+            else:
+                message += f"Ставка не зашла\n"
+            total_profit = total_profit + profit - bet_size
+            total_spent += bet_size
+            odd_s = f"{m.odd:.2f}" if m.odd is not None else "—"
+            message += f"Выигрыш: {profit} (коэффициент {odd_s})\n\n"
+            matches_count += 1
+        if total_profit >= 0:
+            message += f"✅ ИТОГ ДНЯ: прибыль {total_profit} (ROI {total_profit / total_spent:.2%})"
+        else:
+            message += f"❌ ИТОГ ДНЯ: убыток {-total_profit} (ROI {total_profit / total_spent:.2%})"
+
+    return message
+
+
+async def daily_send(send_date=None) -> None:
+    # Side-effects (make bets / update yesterday) are scheduled in `ludobot/bot.py`.
+    message = await form_daily_message(send_date=send_date or date.today())
     message = message.strip()
     if message:
-        await bot.send_message(CHANNEL_ID, message)
+        try:
+            logger.info(f"Sending daily message to Telegram: {message}")
+            await bot.send_message(CHANNEL_ID, message)
+        except Exception as e:
+            logger.error(f"Failed to send message to Telegram: {e}")
+        try:
+            await send_message_to_vk(message)
+        except Exception as e:
+            logger.error(f"Failed to send message to VK: {e}")
+        
 
 
 async def get_matches(match_date):
     matches_result = get_matches_by_date(match_date)
     return matches_result.matches
 
-# Отправляет еженедельный отчет о ставках
-async def weekly_send():
-    start_date = date.today() - timedelta(weeks=1)
-    end_date = date.today()
-    logger.info(f'Собираю недельный отчет за период с {start_date} по {end_date}')
-    bet_results = get_bet_results_by_date(start_date, end_date)
-    if bet_results:
-        if bet_results.bet_amount != 0:
-            profitability = round((bet_results.bet_profit / bet_results.bet_amount) * 100, 1)
-        else:
-            profitability = 0
-        message = f'📌 Недельный отчет за период {start_date} - {end_date}\n- Сделано ставок: {bet_results.matches_count}\n- Ставок зашло: {bet_results.guess_matches}\n- Ставок не зашло: {bet_results.not_guess_matches}\n- Сумма ставок: {bet_results.bet_amount}\n- Общий выигрыш: {bet_results.bet_profit}\n- Доходность: {profitability}%'
-        await bot.send_message(CHANNEL_ID, message)
+
+### The old in-function make/update logic was moved to `Utils/background_daily_bets_worker.py`.
+### Keeping message formatting only in this file.
+
+
+async def weekly_send(week_date=None):
+    today = week_date or date.today()
+    start = _as_date(today) - timedelta(days=7)
+    bets = get_bet_results_by_date(start, today)
+    message = await build_weekly_stats(bets)
+    if message:
+        try:
+            logger.info(f"Sending weekly message to Telegram: {message}")
+            await bot.send_message(CHANNEL_ID, message)
+        except Exception as e:
+            logger.error(f"Failed to send message to Telegram: {e}")
+        try:            
+            await send_message_to_vk(message)
+        except Exception as e:
+            logger.error(f"Failed to send message to VK: {e}")
+
+
+async def build_weekly_stats(bets_result: BetResultsDTO):
+    if bets_result.matches_count == 0:
+        return None
+    message = f"📊 Статистика ставок за прошедшую неделю:\n"
+    message += f"Всего ставок: {bets_result.matches_count}\n"
+    message += f"Угадано: {bets_result.guess_matches}\n"
+    message += f"Не угадано: {bets_result.not_guess_matches}\n"
+    message += f"Потрачено: {bets_result.bet_amount}\n"
+    if bets_result.bet_profit >= 0:
+        message += f"Прибыль: {bets_result.bet_profit} (ROI {bets_result.bet_profit / bets_result.bet_amount:.2%})"
     else:
-        logger.info('Матчей для недельного отчета не найдено')
-
-async def make_bets(matches):
-    if not matches:
-        return ''
-    
-    list_of_matches = f'Список матчей на сегодня:\n'
-    for number, match in enumerate(matches):
-        print(match.odd)
-        make_bet(match.match_id, bet_size, match.winner_predict, match.odd)
-        match_result = ''
-        if match.winner_predict == DataModels.MatchResult.home:
-            match_result = f'Предполагаемый победитель: {match.home_team_name_rus}'
-        elif match.winner_predict == DataModels.MatchResult.away:
-            match_result = f'Предполагаемый победитель: {match.away_team_name_rus}'
-        else:
-            match_result = 'Предполагаемый исход - ничья'
-        list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. \n{match_result}\nДелаем ставку {bet_size} с коэффициентом {match.odd}\n\n'
-    
-    return list_of_matches
-
-
-async def build_yesterday_matches_list(matches):
-    if not matches:
-        return ''
-    day_profit = 0
-    list_of_matches = f'\nИтоги вчерашних матчей:\n'
-    for number, match in enumerate(matches):
-        bet = update_bet_result_by_match_id(match.match_id, match.winner_fact)
-        if bet:
-            day_profit -= bet.bet_amount
-            if match.winner_predict == match.winner_fact:
-                bet_result = 'зашла'
-                profit = bet.bet_amount * bet.bet_odds
-                day_profit += profit
-            else:
-                bet_result = 'не зашла'
-                profit = 0
-            if match.winner_fact == DataModels.MatchResult.home:
-                result = f"Победитель: {match.home_team_name_rus}"
-            elif match.winner_fact == DataModels.MatchResult.away:
-                result = f"Победитель: {match.away_team_name_rus}"
-            else:
-                result = f"Ничья"
-            list_of_matches += f'{number + 1}. {match.home_team_name_rus} VS {match.away_team_name_rus}. {result}. Ставка {bet_result}, коэффициент: {bet.bet_odds}. Выигрыш: {profit}\n'
-    list_of_matches += f'\nИтог дня: {"прибыль" if day_profit > 0 else "убыток"} {abs(day_profit)}'
-    return list_of_matches
+        message += f"Убыток: {-bets_result.bet_profit} (ROI {bets_result.bet_profit / bets_result.bet_amount:.2%})"
+    return message
