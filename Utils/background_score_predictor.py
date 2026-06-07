@@ -10,6 +10,8 @@ from score_predictor.config import get_settings
 
 ensure_project_import_paths()
 
+from ThresholdRFClassifier import ThresholdRFClassifier  # noqa: E402  # type: ignore[import-untyped]
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 
@@ -115,11 +117,19 @@ def update_prediction(today=None):
 
             features_df = pd.DataFrame([match_parameters_prepared])
 
-            # Делаем основное предсказание
+            # Делаем основное предсказание (вероятности — через predict_proba модели, у ThresholdRFClassifier он задан явно)
             rft_features_scaled = rft_scaler.transform(features_df)
-            rft_prediction = rft_model.predict(rft_features_scaled)[0]
-            logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rft_prediction}")
-            rft_prediction =  rft_label_encoder.inverse_transform([rft_prediction])[0]
+            rft_proba_row = rft_model.predict_proba(rft_features_scaled)[0]
+            rft_prediction_encoded = rft_model.predict(rft_features_scaled)[0]
+            logger.info(f"Предсказание для матча основной моделью id={match.match_id} ({match.start_match}): {rft_prediction_encoded}")
+            rft_prediction = rft_label_encoder.inverse_transform([rft_prediction_encoded])[0]
+            if isinstance(rft_model, ThresholdRFClassifier):
+                match.predict_proba = float(rft_proba_row[int(rft_prediction_encoded)])
+            else:
+                cls_idx = np.where(rft_model.classes_ == rft_prediction_encoded)[0]
+                match.predict_proba = (
+                    float(rft_proba_row[cls_idx[0]]) if len(cls_idx) else float(np.max(rft_proba_row))
+                )
             DataModels.add_prediction(
                 session,
                 match.match_id,
@@ -127,7 +137,7 @@ def update_prediction(today=None):
                 Path(rf_thresholds_model_name).name,
                 rft_prediction,
             )
-            match.predicted_score =  rft_prediction
+            match.predicted_score = rft_prediction
 
             # Делаем прогноз моделями для сравнения
             rf_features_scaled = rf_scaler.transform(features_df)

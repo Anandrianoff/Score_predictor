@@ -59,6 +59,7 @@ class Match(Base):
     glicko_away_rd: Mapped[Optional[float]]
     glicko_away_vol: Mapped[Optional[float]]
     predicted_score: Mapped[Optional[MatchResult]]
+    predict_proba: Mapped[Optional[float]] = mapped_column(Float)
 
 class Bet(Base):
     __tablename__ = 'bets'
@@ -69,6 +70,7 @@ class Bet(Base):
     bet_odds: Mapped[float]
     bet_result: Mapped[Optional[MatchResult]]  # home/away/draw или NULL, если результат еще неизвестен
     bet_profit: Mapped[Optional[float]]  # выигрыш от ставки, может быть отрицательным в случае проигрыша
+    kelly_criterion: Mapped[Optional[float]] = mapped_column(Float)
 
 # Таблица для записи ставок разными моделями и сравнения их результата
 class Predictions_all_models(Base):
@@ -78,6 +80,17 @@ class Predictions_all_models(Base):
     is_main_model: Mapped[bool]
     model_name: Mapped[str]
     predicted_result: Mapped[MatchResult]
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date_time: Mapped[datetime] = mapped_column()
+    amount: Mapped[float] = mapped_column(Float)
+    bankroll: Mapped[float] = mapped_column(Float)
+    bet_id: Mapped[int] = mapped_column(ForeignKey("bets.bet_id"))
+
 
 def add_prediction(
     session: Session,
