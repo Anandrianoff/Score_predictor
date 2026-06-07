@@ -33,7 +33,7 @@ now = "2026-03-23"
 # # # 4) Update yesterday bets results(same logic as the bot scheduler).
 # asyncio.run(update_yesterday_bet_results(now))
 
-# # 5) Make report about today and yesterday matches (same logic as the bot scheduler).
+# 5) Make report about today and yesterday matches (same logic as the bot scheduler).
 # asyncio.run(daily_send(now))
 
 # 6) Make report about today and yesterday matches (same logic as the bot scheduler).

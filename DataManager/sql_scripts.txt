@@ -13,3 +13,15 @@ CREATE TABLE predictions_all_models (
         REFERENCES matches(match_id)
         ON DELETE CASCADE
 );
+
+Добавление Таблицы с транзакциями и добавление критерия келли для ставок
+
+ALTER TABLE bets ADD COLUMN kelly_criterion DOUBLE PRECISION;
+CREATE TABLE transactions (
+  id SERIAL PRIMARY KEY,
+  date_time TIMESTAMP NOT NULL,
+  amount DOUBLE PRECISION NOT NULL,
+  bankroll DOUBLE PRECISION NOT NULL,
+  bet_id INTEGER NOT NULL REFERENCES bets(bet_id)
+);
+ALTER TABLE matches ADD COLUMN predict_proba DOUBLE PRECISION;
